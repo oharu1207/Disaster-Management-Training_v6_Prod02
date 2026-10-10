@@ -715,6 +715,33 @@
   // [NEW flow-v4] 直前に INCOMPLETE_ADVANCE(accepted:true) が記録された遷移であることを示す。
   // 次の _logPhaseTransition で消費する（遷移が成立しなかった場合は呼び出し側で下ろす）。
   let _incompleteAdvancePending = false;
+  // [NEW flow-v4 段階2補修2] リロード復元した画面のフェーズ。その画面を出るまでの記録に
+  // resumedInVisit: true を付ける（bundleIndex / before がリロード後の値であることの印）。
+  let _resumedVisitPhase = null;
+  const _resumedMark = () =>
+    (_resumedVisitPhase != null && state.phase === _resumedVisitPhase) ? { resumedInVisit: true } : {};
+
+  // [NEW flow-v4 段階2補修2] ウォークスルー完走記録（localStorage に保存し、リロードをまたいで保持）。
+  // 既存の _dwReachedComplete / _rdwReachedComplete と同じタイミングで立て下げする。
+  const walkthroughReached = { acuteLayer: false, acuteEdge: false, recoveryLayer: false, recoveryEdge: false };
+  const WT_KEY_BY_PHASE = {
+    [PHASE.ACUTE_LAYER_DIFF]:    "acuteLayer",
+    [PHASE.ACUTE_DIFF]:          "acuteEdge",
+    [PHASE.RECOVERY_LAYER_DIFF]: "recoveryLayer",
+    [PHASE.RECOVERY_DIFF]:       "recoveryEdge",
+  };
+  // 復元直後の初回ウォークスルー初期化では保存値を下ろさない（そのキーを1回だけ保持する）
+  let _wtKeepOnRestoreInit = null;
+  function _wtSetReached(key) {
+    walkthroughReached[key] = true;
+    saveToLocalStorage();
+  }
+  // 戻り値：保存値を保持した（復元直後の初期化だった）場合 true
+  function _wtLower(key) {
+    if (_wtKeepOnRestoreInit === key) { _wtKeepOnRestoreInit = null; return true; }
+    walkthroughReached[key] = false;
+    return false;
+  }
 
   function _logPhaseTransition(from, to, prevStartTime) {
     const _r = _restoringFromStorage ? { restored: true } : {};
@@ -723,6 +750,13 @@
     _logSegmentTransition(from, to);
     state.phaseStartTime = Date.now();
     logOp("PHASE_ENTER",    { from, fromName: getPhaseName(from), to, toName: getPhaseName(to), ..._r });
+    // [NEW flow-v4 段階2補修2] 復元した画面を出たら印を下ろす
+    if (!_restoringFromStorage && from !== to && from === _resumedVisitPhase) {
+      _resumedVisitPhase = null;
+      _wtKeepOnRestoreInit = null;
+    }
+    // [NEW flow-v4 段階2補修2] 遷移の成功ごとに保存（復元処理中は不完全な状態での上書きを防ぐため保存しない）
+    if (!_restoringFromStorage) saveToLocalStorage();
   }
 
   // ================================================================
@@ -861,7 +895,7 @@
   function confirmIncompleteAdvance(gate, fromPhase, toPhase, message, detail = {}) {
     const accepted = confirm(message);
     logOp("INCOMPLETE_ADVANCE", {
-      gate, fromPhase, toPhase, segment: getSegmentId(fromPhase), accepted, ...detail,
+      gate, fromPhase, toPhase, segment: getSegmentId(fromPhase), accepted, ...detail, ..._resumedMark(),
     });
     _incompleteAdvancePending = accepted;
     return accepted;
@@ -908,6 +942,16 @@
           removalSignature: phase6RemovalSignature,
           initialNodeCount: phase6InitialNodeCount,
         },
+        // [NEW flow-v4 段階2補修2] エクスポート（recoveryScore）に出る採点値。復元しないと
+        // リロード後のエクスポート・atSessionEnd で null になる。
+        scores: {
+          recoveryLayerScore:        state.recoveryLayerScore,
+          recoveryScore:             state.recoveryScore,
+          recoveryLayerScoreRevised: state.recoveryLayerScoreRevised,
+          recoveryScoreRevised:      state.recoveryScoreRevised,
+        },
+        // [NEW flow-v4 段階2補修2] ウォークスルー完走記録
+        walkthroughReached: { ...walkthroughReached },
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -939,8 +983,15 @@
   let _autoSaveTimer = null;
   function debouncedSave() {
     clearTimeout(_autoSaveTimer);
-    _autoSaveTimer = setTimeout(saveToLocalStorage, 700);
+    _autoSaveTimer = setTimeout(() => { _autoSaveTimer = null; saveToLocalStorage(); }, 700);
   }
+  // [NEW flow-v4 段階2補修2] debounce 待ちの保存をリロード・離脱時に確定する（操作直後のリロード対策）
+  window.addEventListener("pagehide", () => {
+    if (!_autoSaveTimer) return;
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = null;
+    saveToLocalStorage();
+  });
 
   function getNodeEl(id) {
     return canvasEl ? canvasEl.querySelector(`.node[data-id="${id}"]`) : null;
@@ -1229,6 +1280,8 @@
       // フェーズ16へ入場した時点で完走ゲートを再度有効にする（§7-5：15へ戻った場合は
       // 再度15の入場ブロックで initRecoveryBundleLoop が呼ばれ、ここでもリセットされる）。
       _rdwReachedComplete = false;
+      // [NEW flow-v4 段階2補修2] 保存値も同じタイミングで下ろす（復元中は保持）
+      if (!_restoringFromStorage) walkthroughReached.recoveryEdge = false;
       // fall-through → 共通 MAP_PHASE_CONFIG ハンドラが loadPhaseData("recoveryRevised") / renderAll / _logPhaseTransition を実行
     }
 
@@ -4443,6 +4496,7 @@
         before: _dwBundleBefore[bundle.bundleKey]?.count ?? null,
         after: null,
         residuals: null,
+        ..._resumedMark(),
       });
       saveToLocalStorage();
       return;
@@ -4455,6 +4509,7 @@
       before: _dwBundleBefore[bundle.bundleKey]?.count ?? null,
       after: residuals.length,
       residuals: residuals.map(e => ({ category: e.category, detail: e.detail })),
+      ..._resumedMark(),
     });
     saveToLocalStorage();
   }
@@ -4799,6 +4854,7 @@
     // 永久にゲートされる）。表示内容・disabled制御は無変更。
     if (N === 0) {
       _dwReachedComplete = true;
+      _wtSetReached(_dwStage === "layer" ? "acuteLayer" : "acuteEdge"); // [NEW flow-v4 段階2補修2]
       $("btnDiffNext")?.classList.remove("btn-gated");
 
       if (counterEl)  counterEl.textContent  = "採点結果";
@@ -4846,6 +4902,7 @@
     if (safeIdx >= N) {
       // [ADDED flow-v2補修] 完了画面到達＝完走フラグを立てる。退出ボタンのゲート解除。
       _dwReachedComplete = true;
+      _wtSetReached(_dwStage === "layer" ? "acuteLayer" : "acuteEdge"); // [NEW flow-v4 段階2補修2]
       $("btnDiffNext")?.classList.remove("btn-gated");
 
       if (counterEl)  counterEl.textContent  = "確認完了";
@@ -4954,6 +5011,9 @@
     // フレッシュな完了画面再採点を全員に通す）。ボタンの減光表示も合わせて再付与する。
     _dwReachedComplete = false;
     $("btnDiffNext")?.classList.add("btn-gated");
+    // [NEW flow-v4 段階2補修2] 保存値も同じタイミングで下ろす（復元直後の初回だけは保持し、完走済みなら減光を解除）
+    const _wtA = stage === "layer" ? "acuteLayer" : "acuteEdge";
+    if (_wtLower(_wtA) && walkthroughReached[_wtA]) $("btnDiffNext")?.classList.remove("btn-gated");
 
     const countsByGroup = {};
     for (const s of _dwSteps) countsByGroup[s.groupKey] = (countsByGroup[s.groupKey] || 0) + 1;
@@ -5996,6 +6056,9 @@
     _rdwBundleBefore = {};
     _rdwReachedComplete = false;
     $("btnRecoveryDiffNext")?.classList.add("btn-gated");
+    // [NEW flow-v4 段階2補修2] 保存値も同じタイミングで下ろす（復元直後の初回だけは保持し、完走済みなら減光を解除）
+    const _wtR = stage === "layer" ? "recoveryLayer" : "recoveryEdge";
+    if (_wtLower(_wtR) && walkthroughReached[_wtR]) $("btnRecoveryDiffNext")?.classList.remove("btn-gated");
 
     logOp("RECOVERY_DIFF_WALKTHROUGH_INIT", {
       stage: _rdwStage,
@@ -6065,6 +6128,7 @@
     // ── ゼロ件 ──────────────────────────────────────────────
     if (N === 0) {
       _rdwReachedComplete = true;
+      _wtSetReached(_rdwStage === "layer" ? "recoveryLayer" : "recoveryEdge"); // [NEW flow-v4 段階2補修2]
       nextPhaseBtn?.classList.remove("btn-gated");
       if (counterEl)  counterEl.textContent  = "採点結果";
       if (stageTagEl) stageTagEl.style.display = "none";
@@ -6098,6 +6162,7 @@
     // ── 完了（index = N） ─────────────────────────────────────
     if (safeIdx >= N) {
       _rdwReachedComplete = true;
+      _wtSetReached(_rdwStage === "layer" ? "recoveryLayer" : "recoveryEdge"); // [NEW flow-v4 段階2補修2]
       nextPhaseBtn?.classList.remove("btn-gated");
       if (counterEl)  counterEl.textContent  = "確認完了";
       if (stageTagEl) stageTagEl.style.display = "none";
@@ -6563,6 +6628,7 @@
 
     renderRemovalList();
     updatePhase6Btn();
+    debouncedSave(); // [NEW flow-v4 段階2補修2] 削除候補の選択を保存（従来は保存されなかった）
   }
 
   function renderRemovalList() {
@@ -7315,7 +7381,8 @@
       // （未完走退出の試行そのものをプロセス測定として残すため、クリックイベントは殺さない）。
       // [CHANGED flow-v4 段階2] 未完走でも confirm 1回で退出できる（INCOMPLETE_ADVANCE）。
       // OK 後は完走時と同じ経路（採点 → snap → 遷移）を通す。
-      if (!_dwReachedComplete) {
+      // [CHANGED flow-v4 段階2補修2] 完走記録（リロード前の完走を含む）が真なら完走済みとして扱う
+      if (!_dwReachedComplete && !walkthroughReached[WT_KEY_BY_PHASE[state.phase]]) {
         const N = _dwBundles.length;
         const M = Math.max(0, Math.min(N, _dwBundleIndex + 1));
         const toPhase = state.phase === PHASE.ACUTE_LAYER_DIFF ? PHASE.ACUTE_EDGE_MAP : PHASE.ACUTE_COMPARE;
@@ -7400,6 +7467,7 @@
       state.recoveryLayerScoreRevised = null;
       state.recoveryScoreRevised = null;
       _rdwBundles = []; _rdwBundleIndex = -1; _rdwStageInBundle = "hint"; _rdwReachedComplete = false;
+      walkthroughReached.recoveryLayer = false; // [NEW flow-v4 段階2補修2] 既存フラグと同じタイミング
       _rdwCtx = null; _rdwErrors = []; _rdwSteps = []; _rdwBundleBefore = {};
       saveToLocalStorage();
     });
@@ -7408,7 +7476,8 @@
       // OK 後は完走時と同じ経路（採点 → スナップ → 遷移）を通す。
       const _rToPhase = state.phase === PHASE.RECOVERY_LAYER_DIFF ? PHASE.RECOVERY_DIFF
         : (FEATURES.ENABLE_TRANSITION_COMPARE_PHASE ? PHASE.TRANSITION_COMPARE : PHASE.RECOVERY_COMPARE);
-      if (!_rdwReachedComplete) {
+      // [CHANGED flow-v4 段階2補修2] 完走記録（リロード前の完走を含む）が真なら完走済みとして扱う
+      if (!_rdwReachedComplete && !walkthroughReached[WT_KEY_BY_PHASE[state.phase]]) {
         const N = _rdwBundles.length;
         const M = Math.max(0, Math.min(N, _rdwBundleIndex + 1));
         if (!confirmIncompleteAdvance("RECOVERY_WALKTHROUGH_INCOMPLETE", state.phase, _rToPhase,
@@ -7545,6 +7614,7 @@
       radio.addEventListener("change", () => {
         phaseData.acute.answers.p3q2sel = radio.value;
         logOp("ANSWER_SELECT", { questionId: "acute.p3q2sel", value: radio.value });
+        debouncedSave(); // [NEW flow-v4 段階2補修2]
       });
     });
 
@@ -7577,6 +7647,7 @@
       radio.addEventListener("change", () => {
         phaseData.recoveryCompare.answers.q7sel = radio.value;
         logOp("ANSWER_SELECT", { questionId: "recoveryCompare.q7sel", value: radio.value });
+        debouncedSave(); // [NEW flow-v4 段階2補修2]
       });
     });
 
@@ -8910,6 +8981,13 @@
             phase6InitialNodeCount = phaseData.p6.nodes.length;
           }
         }
+        // [NEW flow-v4 段階2補修2] 採点値・完走記録の復元（旧データは null / false のまま）
+        for (const k of ["recoveryLayerScore", "recoveryScore", "recoveryLayerScoreRevised", "recoveryScoreRevised"]) {
+          state[k] = saved.scores?.[k] ?? null;
+        }
+        for (const k of Object.keys(walkthroughReached)) {
+          walkthroughReached[k] = saved.walkthroughReached?.[k] === true;
+        }
         if ((phaseData.p6?.nodes?.length ?? 0) > 0) {
           logOp("P6_STATE_RESTORED", {
             source: saved.p6State ? "saved" : "derived",
@@ -8957,12 +9035,36 @@
           logOp("FLOW_REDIRECT", { from: restorePhase, to: PHASE.RECOVERY_COMPARE, reason: "session_not_ended" });
           restorePhase = PHASE.RECOVERY_COMPARE;
         }
+        // [NEW flow-v4 段階2補修2] 復旧期規範マップを使う画面は、読込を待ってから入る
+        // （急性期規範マップは上で常に待っている）。読込失敗時も reject はしない（status が "error" になる）。
+        if ([PHASE.RECOVERY_LAYER_DIFF, PHASE.RECOVERY_DIFF, PHASE.RECOVERY_COMPARE, PHASE.SESSION_END]
+              .includes(restorePhase) && idealRecoveryLoadPromise) {
+          await idealRecoveryLoadPromise;
+        }
+        // 待った後も規範マップが使えない場合は、採点を必要としない直前の作業画面へ。
+        const _acuteIdealOk    = mapLoadStatus.idealAcute === "ready" && !!window.idealMapAcute && !!window.__ICS_SCORING__;
+        const _recoveryIdealOk = mapLoadStatus.idealRecovery === "ready" && !!window.idealMapRecovery && !!window.__ICS_RECOVERY_SCORING__;
+        const IDEAL_FALLBACK = {
+          [PHASE.ACUTE_LAYER_DIFF]:    { ok: _acuteIdealOk,    to: PHASE.ACUTE_MAP },
+          [PHASE.ACUTE_DIFF]:          { ok: _acuteIdealOk,    to: PHASE.ACUTE_EDGE_MAP },
+          [PHASE.RECOVERY_LAYER_DIFF]: { ok: _recoveryIdealOk, to: PHASE.RECOVERY_MAP },
+          [PHASE.RECOVERY_DIFF]:       { ok: _recoveryIdealOk, to: PHASE.RECOVERY_MAP },
+        };
+        const _fb = IDEAL_FALLBACK[restorePhase];
+        if (_fb && !_fb.ok) {
+          logOp("FLOW_REDIRECT", { from: restorePhase, to: _fb.to, reason: "ideal_map_unavailable_on_restore" });
+          restorePhase = _fb.to;
+        }
+        _resumedVisitPhase   = restorePhase;
+        _wtKeepOnRestoreInit = WT_KEY_BY_PHASE[restorePhase] ?? null;
         _restoringFromStorage = true;
         try {
           switchPhase(restorePhase);
         } finally {
           _restoringFromStorage = false;
         }
+        // 復元先に入れなかった場合は印を残さない（後の通常入場を「復元した画面」と誤認しないため）
+        if (state.phase !== restorePhase) { _resumedVisitPhase = null; _wtKeepOnRestoreInit = null; }
       } else {
         clearLocalStorage();
         clearSegTimerStorage();
