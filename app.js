@@ -20,7 +20,14 @@
   // flow-v3：⑨（RECOVERY_MAP）→RECOVERY_LAYER_DIFF(15)→RECOVERY_DIFF(16)→TRANSITION_COMPARE(6)
   // の差分提示チェーンを追加（addendum B 第4段階 §5）。既存フェーズ番号・既存リダイレクト規則は
   // 変更しない。
-  const FLOW_VERSION = "flow-v3-recovery-diff";
+  // [CHANGED flow-v4] 軽量化 段階1：
+  //   - ACUTE_RECORD(3) / TRANSITION_COMPARE(6) / RECOVERY_RECORD(8) をフィーチャーフラグで無効化
+  //     （PHASE 定数・ビュー・描画/回答処理・phaseData は過去ログ突合と再有効化のため残置）
+  //   - 遷移の付け替え：ACUTE_COMPARE(2)→RECOVERY_PREP(4)、RECOVERY_DIFF(16)→RECOVERY_COMPARE(7)、
+  //     RECOVERY_COMPARE(7)→SESSION_END(17)
+  //   - 終了画面 SESSION_END(17) を新設（最終区間の PHASE_DURATION 記録・終了時点スナップショット・
+  //     終了後の閲覧専用ロック）
+  const FLOW_VERSION = "flow-v4-light";
 
   // ================================================================
   // FEATURE FLAGS
@@ -30,7 +37,10 @@
   // 分岐先）は保持されるため、true に戻すだけで再有効化できる。
   // ================================================================
   const FEATURES = Object.freeze({
-    ENABLE_SEQUENCE_PHASE: false,  // Phase 9（シーケンス図構築）
+    ENABLE_SEQUENCE_PHASE:           false,  // Phase 9（シーケンス図構築）
+    ENABLE_ACUTE_RECORD_PHASE:       false,  // [NEW flow-v4] Phase 3（問3・4）
+    ENABLE_TRANSITION_COMPARE_PHASE: false,  // [NEW flow-v4] Phase 6（問5）
+    ENABLE_RECOVERY_RECORD_PHASE:    false,  // [NEW flow-v4] Phase 8（問8）
   });
 
   // ================================================================
@@ -56,7 +66,20 @@
     ACUTE_EDGE_MAP:     14,  // [NEW] エッジ付与（急性期 1B を分離）
     RECOVERY_LAYER_DIFF: 15, // [NEW] 差分提示（復旧期レイヤー）
     RECOVERY_DIFF:       16, // [NEW] 差分提示（復旧期関係）
+    SESSION_END:         17, // [NEW flow-v4] 学習終了画面
   };
+
+  // [NEW flow-v4] フェーズ → フィーチャーフラグ名。未登録のフェーズは常に有効。
+  const PHASE_FEATURE_FLAG = {
+    [PHASE.SEQUENCE]:           "ENABLE_SEQUENCE_PHASE",
+    [PHASE.ACUTE_RECORD]:       "ENABLE_ACUTE_RECORD_PHASE",
+    [PHASE.TRANSITION_COMPARE]: "ENABLE_TRANSITION_COMPARE_PHASE",
+    [PHASE.RECOVERY_RECORD]:    "ENABLE_RECOVERY_RECORD_PHASE",
+  };
+  function isPhaseEnabled(p) {
+    const flag = PHASE_FEATURE_FLAG[p];
+    return flag ? !!FEATURES[flag] : true;
+  }
 
   // ヘッダーステップの表示順（data-phase の数値ではなく配列 index で done/active 判定）
   // PHASE.ACUTE_DIFF/ACUTE_REVISE は数値が大きいが表示上は ACUTE_MAP の直後に来る。
@@ -78,6 +101,7 @@
     PHASE.RECOVERY_COMPARE,   // idx 12
     PHASE.RECOVERY_RECORD,    // idx 13
     PHASE.SEQUENCE,           // idx 14
+    PHASE.SESSION_END,        // idx 15 [NEW flow-v4] ヘッダーステップなし（終了時に全ステップ done 表示）
   ];
 
   // Phase 1 (ACUTE_MAP) 内部サブフェーズ
@@ -114,6 +138,7 @@
     [PHASE.ACUTE_EDGE_MAP]:     "phase-1",           // [NEW] 1 とビュー共有
     [PHASE.RECOVERY_LAYER_DIFF]: "phase-recoveryDiff", // [NEW]
     [PHASE.RECOVERY_DIFF]:       "phase-recoveryDiff", // [NEW] 15 とビュー共有
+    [PHASE.SESSION_END]:         "phase-end",          // [NEW flow-v4]
   };
 
   // === ノード一覧（Excelノート_.xlsx より） ===
@@ -360,14 +385,14 @@
       {
         id: "q6",
         kind: "textarea",
-        label: "問6． 復旧期の基準となる組織構造と実際の対応をもとに整理した組織構造を比較し、最も重要と思う構造的差異を1つ挙げて説明せよ。（100字以内）",
+        label: "問3． 復旧期の基準となる組織構造と実際の対応をもとに整理した組織構造を比較し、最も重要と思う構造的差異を1つ挙げて説明せよ。（100字以内）",
         placeholder: "例）基準となる組織構造では…が存在するが、実際の対応をもとに整理した組織構造では…",
         maxLength: 100,
       },
       {
         id: "q7",
         kind: "textarea",
-        label: "問7． 問6で指摘した差異が生じた理由について、ICS原則のうちどの違反かを選択し、急性期との継続性の観点から説明せよ。（200字以内）",
+        label: "問4． 問3で指摘した差異が生じた理由について、ICS原則のうちどの違反かを選択し、急性期との継続性の観点から説明せよ。（200字以内）",
         placeholder: "例）急性期では…であったが、復旧期には…",
         maxLength: 200,
       }
@@ -446,6 +471,10 @@
     // 修正後（live状態＝recoveryRevised を入力。ウォークスルー退出時に確定計測）
     recoveryLayerScoreRevised: null,
     recoveryScoreRevised: null,
+    // [NEW flow-v4] 学習終了（SESSION_END）関連。終了後は閲覧専用ロック（applySessionLock）。
+    sessionEnded: false,
+    sessionEndedAt: null,
+    sessionEndSnapshot: null,  // 終了時点の buildExportObject()（operationLog を除く）のディープコピー
   };
 
   window.idealMapAcute     = null;
@@ -548,16 +577,23 @@
   const phaseSteps = document.querySelectorAll(".phase-step");
 
   // Feature flag によるヘッダーステップの動的制御
-  // data-phase="8"（PHASE.SEQUENCE）のステップと、その直前の「›」を非表示にする。
-  if (!FEATURES.ENABLE_SEQUENCE_PHASE) {
-    const seqStep = document.querySelector(`.phase-step[data-phase="${PHASE.SEQUENCE}"]`);
-    if (seqStep) {
-      const prevArrow = seqStep.previousElementSibling;
-      if (prevArrow && prevArrow.classList.contains("phase-arrow")) {
-        prevArrow.style.display = "none";
+  // [CHANGED flow-v4] isPhaseEnabled() が偽のステップすべてについて、ステップ本体と直前の「›」を
+  // 非表示にし、表示されているステップだけで .step-num を 1 から振り直す。
+  {
+    let _stepNo = 0;
+    phaseSteps.forEach(step => {
+      const sp = parseInt(step.dataset.phase, 10);
+      if (!isPhaseEnabled(sp)) {
+        const prevArrow = step.previousElementSibling;
+        if (prevArrow && prevArrow.classList.contains("phase-arrow")) {
+          prevArrow.style.display = "none";
+        }
+        step.style.display = "none";
+        return;
       }
-      seqStep.style.display = "none";
-    }
+      const num = step.querySelector(".step-num");
+      if (num) num.textContent = String(++_stepNo);
+    });
   }
 
   // PHASE_VIEW_ID マップを使い、DOM 順に依存せずビューを切り替える
@@ -633,6 +669,7 @@
       case PHASE.ACUTE_EDGE_MAP:     return "acute_edge_map";     // [NEW]
       case PHASE.RECOVERY_LAYER_DIFF: return "recovery_layer_diff"; // [NEW flow-v3]
       case PHASE.RECOVERY_DIFF:       return "recovery_diff";       // [NEW flow-v3]
+      case PHASE.SESSION_END:         return "session_end";         // [NEW flow-v4]
       default:                       return "unknown";
     }
   }
@@ -645,15 +682,22 @@
       phaseName: getPhaseName(state.phase),
       activePhaseKey,
       type,
-      detail
+      detail,
+      ...(state.sessionEnded ? { postSession: true } : {}),  // [NEW flow-v4] 終了後の見直し中の操作
     });
   }
 
+  // [NEW flow-v4] 復元直後の switchPhase 1回に限り真。PHASE_EXIT/DURATION/ENTER に restored: true を付ける。
+  let _restoringFromStorage = false;
+  // [NEW flow-v4] 終了操作（endSession）中のみ真。これ以外の経路からの SESSION_END 遷移を無視する。
+  let _endingSession = false;
+
   function _logPhaseTransition(from, to, prevStartTime) {
-    logOp("PHASE_EXIT",     { from, fromName: getPhaseName(from), to, toName: getPhaseName(to) });
-    logOp("PHASE_DURATION", { phase: from, phaseName: getPhaseName(from), ms: Date.now() - prevStartTime });
+    const _r = _restoringFromStorage ? { restored: true } : {};
+    logOp("PHASE_EXIT",     { from, fromName: getPhaseName(from), to, toName: getPhaseName(to), ..._r });
+    logOp("PHASE_DURATION", { phase: from, phaseName: getPhaseName(from), ms: Date.now() - prevStartTime, ..._r });
     state.phaseStartTime = Date.now();
-    logOp("PHASE_ENTER",    { from, fromName: getPhaseName(from), to, toName: getPhaseName(to) });
+    logOp("PHASE_ENTER",    { from, fromName: getPhaseName(from), to, toName: getPhaseName(to), ..._r });
   }
 
   function hasUnsavedWork() {
@@ -687,6 +731,9 @@
         operationLog:   state.operationLog,
         phaseData:      phaseData,
         phase5Data:     window.phase5Data,
+        sessionEnded:       state.sessionEnded,        // [NEW flow-v4]
+        sessionEndedAt:     state.sessionEndedAt,      // [NEW flow-v4]
+        sessionEndSnapshot: state.sessionEndSnapshot,  // [NEW flow-v4]
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -811,6 +858,19 @@
     const prevPhase      = state.phase;
     const prevStartTime  = state.phaseStartTime;
 
+    // [NEW flow-v4] 無効フェーズへはどの経路（ヘッダー・旧ボタン・復元等）からも入れない
+    if (!isPhaseEnabled(p)) {
+      logOp("PHASE_SWITCH_IGNORED", { to: p, toName: getPhaseName(p), reason: "feature_disabled" });
+      return;
+    }
+    // [NEW flow-v4] 終了画面へは終了操作（endSession）経由でのみ入れる。
+    // 例外：終了済みセッションを終了画面で保存→リロードした場合の復元。
+    if (p === PHASE.SESSION_END && !_endingSession &&
+        !(_restoringFromStorage && state.sessionEnded)) {
+      logOp("PHASE_SWITCH_IGNORED", { to: p, toName: getPhaseName(p), reason: "not_via_end_button" });
+      return;
+    }
+
     // drawingArrow が残留していたら必ずキャンセル
     if (state.drawingArrow) cancelArrowDraw();
 
@@ -839,6 +899,14 @@
     activatePhaseView(p);
     // ヘッダーステップは data-phase 属性で比較する（DOM 順非依存）
     updatePhaseSteps(p);
+
+    // ── 学習終了画面 ─────────────────────────────────────────────── [NEW flow-v4]
+    // 直前フェーズ（通常 RECOVERY_COMPARE）の PHASE_DURATION を必ず記録する（S-11）。
+    if (p === PHASE.SESSION_END) {
+      _logPhaseTransition(prevPhase, p, prevStartTime);
+      renderSessionEndView();
+      return;
+    }
 
     // ── 差分提示・レイヤー（急性期） ──────────────────────────────── [NEW]
     // bundleループ（ヒント→自己修正→正解＋WHY）に編集させるため、共通マップハンドラに fall-through する。
@@ -976,7 +1044,8 @@
       const _rdBackBtn = $("btnRecoveryDiffBack");
       const _rdNextBtn = $("btnRecoveryDiffNext");
       if (_rdBackBtn) _rdBackBtn.textContent = "← レイヤー差分へ戻る";
-      if (_rdNextBtn) _rdNextBtn.textContent = "確認完了 →";
+      if (_rdNextBtn) _rdNextBtn.textContent = FEATURES.ENABLE_TRANSITION_COMPARE_PHASE
+        ? "確認完了 →" : "確認完了 → 比較・分析へ"; // [CHANGED flow-v4] 退出先 RECOVERY_COMPARE
 
       const _rdTitle = $("recoveryDiffTitle");
       if (_rdTitle) _rdTitle.textContent = "関係（矢印）の確認（復旧期）";
@@ -1412,6 +1481,65 @@
     }
     if (p === PHASE.ORIENTATION) tutorialBeginIfVisible();
   };
+
+  // ================================================================
+  // SESSION END — 学習終了・閲覧専用ロック [NEW flow-v4]
+  // ================================================================
+  function renderSessionEndView() {
+    const el = $("sessionEndTime");
+    if (!el) return;
+    el.textContent = state.sessionEndedAt ? new Date(state.sessionEndedAt).toLocaleString() : "";
+  }
+
+  // 終了操作。btnToRecoveryRecord（RECOVERY_COMPARE）から呼ぶ。
+  function endSession() {
+    if (state.sessionEnded) return;
+    if (!confirm("学習を終了しますか？終了後は回答やマップを変更できなくなります。")) return;
+    const prevPhase = state.phase;
+    _endingSession = true;
+    try {
+      switchPhase(PHASE.SESSION_END);
+    } finally {
+      _endingSession = false;
+    }
+    if (state.phase !== PHASE.SESSION_END) return;  // 遷移できなかった場合は終了扱いにしない
+    const endedAt = new Date().toISOString();
+    logOp("SESSION_END", { fromPhase: prevPhase, fromName: getPhaseName(prevPhase), endedAt });
+    // 終了時点の測定値を凍結（operationLog は除く。終了後の再入場・再採点で変化しない）
+    const { operationLog, atSessionEnd, ...snap } = buildExportObject();
+    state.sessionEndSnapshot = JSON.parse(JSON.stringify(snap));
+    state.sessionEnded   = true;
+    state.sessionEndedAt = endedAt;
+    renderSessionEndView();
+    applySessionLock();
+    saveToLocalStorage();
+  }
+
+  let _sessionLockListenersAdded = false;
+  function applySessionLock() {
+    // 1. マウス操作の遮断（.app-header は対象外：ステップ移動と JSON 保存は使える）
+    document.body.classList.add("session-ended");
+    // 2. キーボード操作の遮断（capture フェーズで1回だけ登録。既存の Delete キー削除も止まる）
+    if (!_sessionLockListenersAdded) {
+      _sessionLockListenersAdded = true;
+      const _block = e => {
+        if (!state.sessionEnded) return;
+        if (e.target.closest && e.target.closest(".app-header")) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+      };
+      window.addEventListener("keydown", _block, true);
+      window.addEventListener("beforeinput", _block, true);
+    }
+    // 3. 終了済み表示
+    const badge = $("sessionEndedBadge");
+    if (badge) badge.hidden = false;
+  }
+
+  function releaseSessionLock() {
+    document.body.classList.remove("session-ended");
+    const badge = $("sessionEndedBadge");
+    if (badge) badge.hidden = true;
+  }
   // data-phase 属性の値を使うことで、DOM順の index に依存しない
   phaseSteps.forEach(s => s.addEventListener("click", () => switchPhase(parseInt(s.dataset.phase, 10))));
   $("btnStartMap").addEventListener("click", () => switchPhase(PHASE.ACUTE_MAP));
@@ -2439,6 +2567,10 @@
       transitionCompare: phaseData.transitionCompare,
       recoveryCompare:   phaseData.recoveryCompare,
       recoveryRecord:    phaseData.recoveryRecord,
+      // [NEW flow-v4] 学習終了状態と終了時点スナップショット（終了後の見直しで変化しない測定値）
+      sessionEnded:   state.sessionEnded,
+      sessionEndedAt: state.sessionEndedAt,
+      atSessionEnd:   state.sessionEndSnapshot,
     };
   }
 
@@ -2446,7 +2578,8 @@
     logOp("EXPORT", {
       currentPhase: state.phase,
       currentPhaseName: getPhaseName(state.phase),
-      operationLogCount: state.operationLog.length
+      operationLogCount: state.operationLog.length,
+      currentPhaseElapsedMs: Date.now() - state.phaseStartTime, // [NEW flow-v4] 打ち切り時の最終画面滞在時間推定用
     });
     const blob = new Blob([JSON.stringify(buildExportObject(), null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -2551,6 +2684,10 @@
             // recoveryBaseline / recoveryRevised の復元（v10未満は null で補完。§4）
             phaseData.recoveryBaseline = obj.recoveryBaseline || null;
             phaseData.recoveryRevised  = obj.recoveryRevised  || null;
+            // [NEW flow-v4] 学習終了状態の復元（flow-v3 以前のログには無いため false / null）
+            state.sessionEnded       = obj.sessionEnded === true;
+            state.sessionEndedAt     = obj.sessionEndedAt ?? null;
+            state.sessionEndSnapshot = obj.atSessionEnd   ?? null;
             // phase5Data の復元（同一ラベルのノードを補完）
             if (obj.phase5Data?.removals) {
               const restoredRemovals = [];
@@ -2655,6 +2792,7 @@
           }
 
           if (hasConflict) showToast("読み込んだデータに矛盾する矢印の組み合わせが含まれています", 3000);
+          if (state.sessionEnded) applySessionLock(); else releaseSessionLock(); // [NEW flow-v4]
           state.sessionId      = generateSessionId();
           state.operationLog   = importedLogs;
           state.phaseStartTime = Date.now();
@@ -2723,6 +2861,17 @@
   }
 
   function resetAll() {
+    // [NEW flow-v4] 学習終了後：終了状態とロックを解除する（データは消さない）
+    if (state.sessionEnded) {
+      if (!confirm("学習終了状態を解除して編集可能に戻しますか？（回答・マップは消えません）")) return;
+      logOp("RESET", { target: "sessionEnd", sessionEndedAt: state.sessionEndedAt });
+      state.sessionEnded       = false;
+      state.sessionEndedAt     = null;
+      state.sessionEndSnapshot = null;
+      releaseSessionLock();
+      saveToLocalStorage();
+      return;
+    }
     if (state.phase === PHASE.ORIENTATION) {
       showToast("オリエンテーション中は初期化できません", 2000);
       return;
@@ -7049,7 +7198,8 @@
         return;
       }
       gradeRecoveryEdgeRevisedPhase();
-      switchPhase(PHASE.TRANSITION_COMPARE);
+      // [CHANGED flow-v4] TRANSITION_COMPARE 無効時は RECOVERY_COMPARE へ直結
+      switchPhase(FEATURES.ENABLE_TRANSITION_COMPARE_PHASE ? PHASE.TRANSITION_COMPARE : PHASE.RECOVERY_COMPARE);
     });
     $("rdwPrev")?.addEventListener("click", () => {
       if (_rdwBundleIndex <= -1) return;
@@ -7077,8 +7227,12 @@
       if (!allFilled) {
         if (!confirm("未入力の設問があります。続けますか？")) return;
       }
-      switchPhase(PHASE.ACUTE_RECORD);
+      // [CHANGED flow-v4] ACUTE_RECORD 無効時は RECOVERY_PREP へ直結
+      switchPhase(FEATURES.ENABLE_ACUTE_RECORD_PHASE ? PHASE.ACUTE_RECORD : PHASE.RECOVERY_PREP);
     });
+    if (!FEATURES.ENABLE_ACUTE_RECORD_PHASE && $("btnToAcuteRecord")) {
+      $("btnToAcuteRecord").textContent = "復旧期準備へ進む →";
+    }
 
     // Phase3 記述問題パネル
     const p3q1 = $("p3q1Answer");
@@ -7197,14 +7351,19 @@
     $("btnToRecoveryRecord")?.addEventListener("click", () => {
       const { q6, q7 } = phaseData.recoveryCompare.answers;
       if (!q6) {
-        showToast("問6で構造的差異を入力してください", 3000);
+        showToast("問3で構造的差異を入力してください", 3000);
         return;
       }
       if (!q7) {
-        if (!confirm("問7 が未入力です。このまま進みますか？")) return;
+        if (!confirm("問4 が未入力です。このまま進みますか？")) return;
       }
-      switchPhase(PHASE.RECOVERY_RECORD);
+      // [CHANGED flow-v4] RECOVERY_RECORD 無効時は学習終了操作
+      if (FEATURES.ENABLE_RECOVERY_RECORD_PHASE) switchPhase(PHASE.RECOVERY_RECORD);
+      else endSession();
     });
+    if (!FEATURES.ENABLE_RECOVERY_RECORD_PHASE && $("btnToRecoveryRecord")) {
+      $("btnToRecoveryRecord").textContent = "学習を終了する";
+    }
 
     document.addEventListener("keydown", e => {
       if (e.key === "Escape" && !state.drawingArrow && state.selectedNodeId) {
@@ -8457,11 +8616,22 @@
         state.phaseStartTime = Date.now();  // 復元時刻にリセット（異常滞在時間を防ぐ）
         state.acuteSubPhase  = saved.acuteSubPhase  ?? null;
         state.tooltipEnabled = saved.tooltipEnabled ?? true;
+        // [NEW flow-v4] 学習終了状態の復元
+        state.sessionEnded       = saved.sessionEnded       ?? false;
+        state.sessionEndedAt     = saved.sessionEndedAt     ?? null;
+        state.sessionEndSnapshot = saved.sessionEndSnapshot ?? null;
+        if (state.sessionEnded) applySessionLock();
         if (saved.phaseStartTime) {
           logOp("RESUMED_FROM_STORAGE", {
             previousPhaseStartTime: saved.phaseStartTime,
             gapMs: Date.now() - saved.phaseStartTime,
             operationLogCount: state.operationLog.length
+          });
+          // [NEW flow-v4] リロード前の滞在時間（不具合発生〜リロードの時間を含む）。
+          // phase はリダイレクト前の saved.currentPhase を使う。
+          logOp("PHASE_DURATION", {
+            phase: saved.currentPhase, phaseName: getPhaseName(saved.currentPhase),
+            ms: Date.now() - saved.phaseStartTime, interruptedByReload: true,
           });
         }
         Object.assign(phaseData, saved.phaseData);
@@ -8492,7 +8662,27 @@
           logOp("FLOW_REDIRECT", { from: restorePhase, to: PHASE.RECOVERY_MAP, reason: "recovery_baseline_missing" });
           restorePhase = PHASE.RECOVERY_MAP;
         }
-        switchPhase(restorePhase);
+        // [NEW flow-v4] 無効化したフェーズ／未終了の終了画面で保存されたセッションは、
+        // 改修後フローの対応先へリダイレクトする。
+        const FLOW_V4_REDIRECT = {
+          [PHASE.ACUTE_RECORD]:       PHASE.RECOVERY_PREP,
+          [PHASE.TRANSITION_COMPARE]: PHASE.RECOVERY_COMPARE,
+          [PHASE.RECOVERY_RECORD]:    PHASE.RECOVERY_COMPARE,
+        };
+        if (!isPhaseEnabled(restorePhase) && FLOW_V4_REDIRECT[restorePhase] != null) {
+          logOp("FLOW_REDIRECT", { from: restorePhase, to: FLOW_V4_REDIRECT[restorePhase], reason: "feature_disabled" });
+          restorePhase = FLOW_V4_REDIRECT[restorePhase];
+        }
+        if (restorePhase === PHASE.SESSION_END && !state.sessionEnded) {
+          logOp("FLOW_REDIRECT", { from: restorePhase, to: PHASE.RECOVERY_COMPARE, reason: "session_not_ended" });
+          restorePhase = PHASE.RECOVERY_COMPARE;
+        }
+        _restoringFromStorage = true;
+        try {
+          switchPhase(restorePhase);
+        } finally {
+          _restoringFromStorage = false;
+        }
       } else {
         clearLocalStorage();
       }

@@ -13,7 +13,9 @@
   <div class="header-left">
     <div class="logo"><span class="logo-ics">ICS</span><span class="logo-name">学習支援<span class="logo-sub">システム</span></span></div>
     <!-- [CHANGED flow-v2] ステップ13個に更新（修正フェーズ Phase 11/13 を廃止。編集は
-         直前の差分提示walkthrough内で完結する）。data-phase は PHASE 定数値に合わせて変更 -->
+         直前の差分提示walkthrough内で完結する）。data-phase は PHASE 定数値に合わせて変更
+         [CHANGED flow-v4] FEATURES で無効化したステップは JS が非表示にし、.step-num を表示順に振り直す
+         （改修後は11ステップ）。終了画面（SESSION_END）にはステップを作らない -->
     <div class="phase-track">
       <div class="phase-step active" data-phase="0"><span class="step-num">1</span><span class="step-label">オリエン<br>テーション</span></div>
       <span class="phase-arrow">›</span>
@@ -47,6 +49,7 @@
     </div>
   </div>
   <div class="header-right">
+    <span id="sessionEndedBadge" class="session-ended-badge" hidden>終了済み（見直し中）</span>
     <button id="btnExport" class="btn-primary">📥 JSON保存</button>
     <button id="btnImport" class="btn-secondary">📤 JSON読込</button>
     <button id="btnReset" class="btn-danger">初期化</button>
@@ -863,7 +866,7 @@
     <div class="compare-qa-inner">
       <div class="compare-qa-block">
         <label class="compare-qa-label">
-          問6． 復旧期の基準となる組織構造と実際の対応をもとに整理した組織構造を比較し、最も重要と思う構造的差異を1つ挙げて一言で説明せよ。
+          問3． 復旧期の基準となる組織構造と実際の対応をもとに整理した組織構造を比較し、最も重要と思う構造的差異を1つ挙げて一言で説明せよ。
         </label>
         <textarea id="rcQ6Answer" rows="2"
           placeholder="例）基準となる組織構造では…が存在するが、実際の対応をもとに整理した組織構造では…"></textarea>
@@ -871,7 +874,7 @@
       </div>
       <div class="compare-qa-block">
         <label class="compare-qa-label">
-          問7．	問6で指摘した差異が生じた理由について、ICS 3原則（指揮一元化・統制範囲・コミュニケーション）のうちどの違反かを選択し、急性期との継続性の観点から説明せよ。（200字以内）
+          問4．	問3で指摘した差異が生じた理由について、ICS 3原則（指揮一元化・統制範囲・コミュニケーション）のうちどの違反かを選択し、急性期との継続性の観点から説明せよ。（200字以内）
         </label>
         <div class="ics-radio-group" id="rcQ7RadioGroup">
           <label class="ics-radio-item">
@@ -902,6 +905,15 @@
   </div>
 
 </div><!-- /phase-recoveryCompare -->
+
+<!-- ===== PHASE SESSION_END (17): 学習終了 ===== [NEW flow-v4] -->
+<div id="phase-end" class="phase-view">
+  <div class="session-end-card">
+    <h2>学習は終了しました</h2>
+    <p>学習は終了しました。研究者の指示があるまで、上部のステップから前の画面を見直すことができます（変更はできません）。</p>
+    <p class="session-end-time">終了時刻：<span id="sessionEndTime"></span></p>
+  </div>
+</div><!-- /phase-end -->
 
 <!-- ===== PHASE RECOVERY_RECORD: 対応検証記録（復旧期） ===== -->
 <div id="phase-recoveryRecord" class="phase-view">
