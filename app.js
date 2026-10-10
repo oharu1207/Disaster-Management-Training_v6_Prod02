@@ -901,6 +901,13 @@
         sessionEnded:       state.sessionEnded,        // [NEW flow-v4]
         sessionEndedAt:     state.sessionEndedAt,      // [NEW flow-v4]
         sessionEndSnapshot: state.sessionEndSnapshot,  // [NEW flow-v4]
+        // [NEW flow-v4 段階2補修] ⑨の状態変数。復元時に戻さないと p6NeedsRebuild() が true になり、
+        // initPhase6Canvas() が学習者の⑨（phaseData.p6）を上書きしてしまう。
+        p6State: {
+          initialized:      phase6Initialized,
+          removalSignature: phase6RemovalSignature,
+          initialNodeCount: phase6InitialNodeCount,
+        },
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -8889,6 +8896,26 @@
         restoreSegTimer(saved.currentPhase, state.sessionEnded);
         Object.assign(phaseData, saved.phaseData);
         if (saved.phase5Data) Object.assign(window.phase5Data, saved.phase5Data);
+        // [NEW flow-v4 段階2補修] ⑨の状態変数の復元（phaseData.p6・phase5Data の復元後、switchPhase の前）。
+        // (a) 保存済みの p6State をそのまま戻す。(b) p6State の無い旧データは importJSON と同じ規則で導出する。
+        // シグネチャは getRemovalSignature() の値をそのまま保存・比較する（独自に組み立てない）。
+        if (saved.p6State) {
+          phase6Initialized      = !!saved.p6State.initialized;
+          phase6RemovalSignature = saved.p6State.removalSignature ?? "";
+          phase6InitialNodeCount = saved.p6State.initialNodeCount ?? 0;
+        } else {
+          phase6Initialized = (phaseData.p6?.nodes?.length ?? 0) > 0;
+          if (phase6Initialized) {
+            phase6RemovalSignature = getRemovalSignature();
+            phase6InitialNodeCount = phaseData.p6.nodes.length;
+          }
+        }
+        if ((phaseData.p6?.nodes?.length ?? 0) > 0) {
+          logOp("P6_STATE_RESTORED", {
+            source: saved.p6State ? "saved" : "derived",
+            initialized: phase6Initialized, nodeCount: phaseData.p6.nodes.length,
+          });
+        }
         // 規範マップのロード完了を待ってから復元する（採点が未定義規範マップで
         // スキップされ、空のウォークスルーが表示されるのを防ぐ）
         if (idealAcuteLoadPromise) await idealAcuteLoadPromise;
