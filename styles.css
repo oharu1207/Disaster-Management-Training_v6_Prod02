@@ -1808,6 +1808,19 @@ g.diff-dimmed > text {
   border: 1px solid var(--yellow); color: var(--yellow);
   font-size: 11px; font-weight: 700; white-space: nowrap;
 }
+.session-ended-badge { cursor: pointer; }
 .session-ended-badge[hidden] { display: none; }
-body.session-ended .phase-view:not(#phase-end) { pointer-events: none; }
+/* [CHANGED flow-v4 段階2] pointer-events:none は廃止（スクロールのため）。編集操作は JS の capture 遮断で止める */
 body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
+.header-right { align-items: center; }
+
+/* 区間タイマー（研究者が後方から判別できる大きさ。目安超過で警告色、中間色なし） [NEW flow-v4 段階2] */
+.segment-badge {
+  padding: 5px 12px; border-radius: 8px;
+  font-size: 16px; font-weight: 800; white-space: nowrap; line-height: 1.3;
+  background: var(--card2); color: var(--text); border: 1px solid var(--border2);
+  font-variant-numeric: tabular-nums;
+}
+.segment-badge:empty { display: none; }
+.segment-badge.seg-over { background: #c62828; color: #fff; border-color: #c62828; }
+.segment-badge.seg-ended { color: var(--text-dim); }

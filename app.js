@@ -81,6 +81,27 @@
     return flag ? !!FEATURES[flag] : true;
   }
 
+  // [NEW flow-v4] 区間定義。目安時間は改修項目表「区間構成と時間配分」と同期する。
+  const SEGMENTS = Object.freeze([
+    { id: 1,  name: "チュートリアル",             phases: [PHASE.ORIENTATION],                               targetMin: 4  },
+    { id: 2,  name: "急性期：層配置",             phases: [PHASE.ACUTE_MAP],                                 targetMin: 8  },
+    { id: 3,  name: "急性期：層配置の差分確認",   phases: [PHASE.ACUTE_LAYER_DIFF],                          targetMin: 3  },
+    { id: 4,  name: "急性期：関係付与",           phases: [PHASE.ACUTE_EDGE_MAP],                            targetMin: 12 },
+    { id: 5,  name: "急性期：関係付与の差分確認", phases: [PHASE.ACUTE_DIFF],                                targetMin: 7  },
+    { id: 6,  name: "急性期の比較・分析",         phases: [PHASE.ACUTE_COMPARE],                             targetMin: 5  },
+    { id: 7,  name: "復旧期準備",                 phases: [PHASE.RECOVERY_PREP],                             targetMin: 4  },
+    { id: 8,  name: "復旧期マップ作成",           phases: [PHASE.RECOVERY_MAP],                              targetMin: 9  },
+    { id: 9,  name: "復旧期の差分確認",           phases: [PHASE.RECOVERY_LAYER_DIFF, PHASE.RECOVERY_DIFF],  targetMin: 4  },
+    { id: 10, name: "復旧期の比較・分析",         phases: [PHASE.RECOVERY_COMPARE],                          targetMin: 4  },
+  ]);
+  // SEGMENTS に含まれないフェーズ（SESSION_END・無効化フェーズ）は null
+  function getSegmentId(phase) {
+    const seg = SEGMENTS.find(sg => sg.phases.includes(phase));
+    return seg ? seg.id : null;
+  }
+  const getSegment = id => SEGMENTS.find(sg => sg.id === id) || null;
+  const segTargetMs = seg => Math.round(seg.targetMin * 60000);
+
   // ヘッダーステップの表示順（data-phase の数値ではなく配列 index で done/active 判定）
   // PHASE.ACUTE_DIFF/ACUTE_REVISE は数値が大きいが表示上は ACUTE_MAP の直後に来る。
   // [CHANGED flow-v2] ACUTE_LAYER_REVISE(13) / ACUTE_REVISE(11) を除去（修正フェーズ廃止、
@@ -691,13 +712,159 @@
   let _restoringFromStorage = false;
   // [NEW flow-v4] 終了操作（endSession）中のみ真。これ以外の経路からの SESSION_END 遷移を無視する。
   let _endingSession = false;
+  // [NEW flow-v4] 直前に INCOMPLETE_ADVANCE(accepted:true) が記録された遷移であることを示す。
+  // 次の _logPhaseTransition で消費する（遷移が成立しなかった場合は呼び出し側で下ろす）。
+  let _incompleteAdvancePending = false;
 
   function _logPhaseTransition(from, to, prevStartTime) {
     const _r = _restoringFromStorage ? { restored: true } : {};
     logOp("PHASE_EXIT",     { from, fromName: getPhaseName(from), to, toName: getPhaseName(to), ..._r });
     logOp("PHASE_DURATION", { phase: from, phaseName: getPhaseName(from), ms: Date.now() - prevStartTime, ..._r });
+    _logSegmentTransition(from, to);
     state.phaseStartTime = Date.now();
     logOp("PHASE_ENTER",    { from, fromName: getPhaseName(from), to, toName: getPhaseName(to), ..._r });
+  }
+
+  // ================================================================
+  // SEGMENT TIMER — 区間ごとの累積滞在時間・目安超過 [NEW flow-v4]
+  // 本体の保存ペイロードとは別キーに毎 tick 保存する（本体保存は操作時にしか走らないため）。
+  // ================================================================
+  const SEGMENT_TIMER_KEY = "ics_segment_timer_v1";
+  const segTimer = { elapsedMs: {}, exceeded: {}, lastTickAt: Date.now(), visit: { segment: null, ms: 0 } };
+  let _segTimerInterval = null;
+
+  function _resetSegTimer() {
+    segTimer.elapsedMs = {}; segTimer.exceeded = {};
+    segTimer.lastTickAt = Date.now();
+    segTimer.visit = { segment: null, ms: 0 };
+  }
+
+  function _saveSegTimer() {
+    try { localStorage.setItem(SEGMENT_TIMER_KEY, JSON.stringify(segTimer)); } catch (e) { /* 保存失敗は無視 */ }
+  }
+
+  // phase の区間に、前回 tick からの経過（時刻差分）を加算する。終了後・区間外は加算しない。
+  function segTimerTick(phase = state.phase) {
+    const now = Date.now();
+    const delta = Math.max(0, now - (segTimer.lastTickAt || now));
+    segTimer.lastTickAt = now;
+    const segId = getSegmentId(phase);
+    if (segId != null && !state.sessionEnded) {
+      segTimer.elapsedMs[segId] = (segTimer.elapsedMs[segId] || 0) + delta;
+      if (segTimer.visit.segment === segId) segTimer.visit.ms += delta;
+      else segTimer.visit = { segment: segId, ms: delta };
+      const seg = getSegment(segId);
+      const targetMs = segTargetMs(seg);
+      if (!segTimer.exceeded[segId] && segTimer.elapsedMs[segId] > targetMs) {
+        segTimer.exceeded[segId] = true;
+        logOp("SEGMENT_TARGET_EXCEEDED", {
+          segment: segId, segmentName: seg.name, targetMs,
+          cumulativeMs: segTimer.elapsedMs[segId], phase: state.phase,
+        });
+      }
+    }
+    _saveSegTimer();
+    renderSegmentBadge();
+  }
+
+  // 復元時：保存済みタイマーを読み込み、リロードまでの空白（now - lastTickAt）を saved.currentPhase の区間に加算
+  function restoreSegTimer(savedPhase, savedSessionEnded) {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(SEGMENT_TIMER_KEY) || "null"); } catch (e) { saved = null; }
+    _resetSegTimer();
+    if (!saved || typeof saved !== "object") return;
+    const num = v => (typeof v === "number" && isFinite(v) && v >= 0 ? v : 0);
+    for (const sg of SEGMENTS) {
+      if (saved.elapsedMs?.[sg.id] != null) segTimer.elapsedMs[sg.id] = num(saved.elapsedMs[sg.id]);
+      if (saved.exceeded?.[sg.id]) segTimer.exceeded[sg.id] = true;
+    }
+    if (saved.visit && getSegment(saved.visit.segment)) {
+      segTimer.visit = { segment: saved.visit.segment, ms: num(saved.visit.ms) };
+    }
+    segTimer.lastTickAt = num(saved.lastTickAt) || Date.now();
+    if (savedSessionEnded) segTimer.lastTickAt = Date.now();
+    segTimerTick(savedPhase);  // 空白分を saved.currentPhase の区間へ
+  }
+
+  function startSegTimer() {
+    if (_segTimerInterval) return;
+    _segTimerInterval = setInterval(() => segTimerTick(), 1000);
+    renderSegmentBadge();
+  }
+
+  function clearSegTimerStorage() {
+    try { localStorage.removeItem(SEGMENT_TIMER_KEY); } catch (e) { /* noop */ }
+  }
+
+  function _fmtMs(ms) {
+    const t = Math.max(0, Math.floor((ms || 0) / 1000));
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+    const pad = n => String(n).padStart(2, "0");
+    return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+  }
+
+  function renderSegmentBadge() {
+    const el = document.getElementById("segmentBadge");
+    if (!el) return;
+    if (state.sessionEnded) {
+      el.textContent = "学習終了";
+      el.classList.remove("seg-over");
+      el.classList.add("seg-ended");
+      return;
+    }
+    el.classList.remove("seg-ended");
+    const segId = getSegmentId(state.phase);
+    const seg = getSegment(segId);
+    if (!seg) { el.textContent = ""; el.classList.remove("seg-over"); return; }
+    const cum = segTimer.elapsedMs[segId] || 0;
+    el.textContent = `区間${seg.id}/${SEGMENTS.length} ${seg.name} ｜ 目安 ${_fmtMs(segTargetMs(seg))} ｜ 経過 ${_fmtMs(cum)}`;
+    el.classList.toggle("seg-over", cum > segTargetMs(seg));
+  }
+
+  // _logPhaseTransition から呼ぶ。区間が変わる遷移で SEGMENT_EXIT を記録し、滞在カウンタを切り替える。
+  function _logSegmentTransition(from, to) {
+    const fromSeg = getSegmentId(from), toSeg = getSegmentId(to);
+    const incomplete = _incompleteAdvancePending;
+    _incompleteAdvancePending = false;
+    if (fromSeg === toSeg) return;
+    if (fromSeg != null && !_restoringFromStorage && !state.sessionEnded) {
+      const seg = getSegment(fromSeg);
+      const targetMs = segTargetMs(seg);
+      const cumulativeMs = segTimer.elapsedMs[fromSeg] || 0;
+      logOp("SEGMENT_EXIT", {
+        segment: fromSeg, segmentName: seg.name, toSegment: toSeg, targetMs,
+        cumulativeMs, overMs: Math.max(0, cumulativeMs - targetMs),
+        visitMs: segTimer.visit.segment === fromSeg ? segTimer.visit.ms : 0,
+        incompleteAdvance: incomplete,
+      });
+    }
+    // 復元直後は保存済みの滞在（visit）を引き継ぐため、同じ区間ならリセットしない
+    if (segTimer.visit.segment !== toSeg) segTimer.visit = { segment: toSeg, ms: 0 };
+  }
+
+  function buildSegmentTimes() {
+    const out = {};
+    for (const sg of SEGMENTS) {
+      out[sg.id] = {
+        name: sg.name, targetMs: segTargetMs(sg),
+        cumulativeMs: segTimer.elapsedMs[sg.id] || 0,
+        exceeded: !!segTimer.exceeded[sg.id],
+      };
+    }
+    return out;
+  }
+
+  // ================================================================
+  // INCOMPLETE_ADVANCE — 内容の完成を求めるゲートの置き換え [NEW flow-v4]
+  // confirm 1回。OK なら true を返し、次の遷移の SEGMENT_EXIT に incompleteAdvance:true を付ける。
+  // ================================================================
+  function confirmIncompleteAdvance(gate, fromPhase, toPhase, message, detail = {}) {
+    const accepted = confirm(message);
+    logOp("INCOMPLETE_ADVANCE", {
+      gate, fromPhase, toPhase, segment: getSegmentId(fromPhase), accepted, ...detail,
+    });
+    _incompleteAdvancePending = accepted;
+    return accepted;
   }
 
   function hasUnsavedWork() {
@@ -865,11 +1032,14 @@
     }
     // [NEW flow-v4] 終了画面へは終了操作（endSession）経由でのみ入れる。
     // 例外：終了済みセッションを終了画面で保存→リロードした場合の復元。
-    if (p === PHASE.SESSION_END && !_endingSession &&
-        !(_restoringFromStorage && state.sessionEnded)) {
+    // [CHANGED flow-v4 段階2] 終了済みなら（見直し中のバッジ・復元を含め）いつでも終了画面に戻れる。
+    if (p === PHASE.SESSION_END && !_endingSession && !state.sessionEnded) {
       logOp("PHASE_SWITCH_IGNORED", { to: p, toName: getPhaseName(p), reason: "not_via_end_button" });
       return;
     }
+    // [NEW flow-v4] 遷移直前までの経過を、離脱元フェーズの区間に計上する
+    // 復元直後の遷移では、復元処理中の時間を復元先フェーズの区間に計上する。
+    segTimerTick(_restoringFromStorage ? p : prevPhase);
 
     // drawingArrow が残留していたら必ずキャンセル
     if (state.drawingArrow) cancelArrowDraw();
@@ -1379,13 +1549,19 @@
 
         if (p === PHASE.RECOVERY_MAP) {
           // ヘッダーからの直接遷移も含め、削除候補が未選択なら復旧期準備に誘導する
-          if (window.phase5Data.removals.length === 0) {
-            showToast("先に復旧期準備で不要なノードを選択してください", 3000);
-            logOp("VALIDATION_ERROR", { type: "RECOVERY_REMOVAL_EMPTY", attemptedPhase: p });
-            state.phase = prevPhase;
-            activatePhaseView(prevPhase);
-            updatePhaseSteps(prevPhase);
-            return;
+          // [CHANGED flow-v4 段階2] 停止ではなく confirm 1回（INCOMPLETE_ADVANCE）。OK なら削除なし
+          // （全ノード維持）で⑨を構築する。⑨を（再）構築するときだけ確認し、構築済み⑨への
+          // 再入場・復元・終了後の見直しでは確認しない。
+          if (window.phase5Data.removals.length === 0 && p6NeedsRebuild() &&
+              !_restoringFromStorage && !state.sessionEnded) {
+            const ok = confirmIncompleteAdvance("RECOVERY_REMOVAL_EMPTY", prevPhase, p,
+              "不要なノードが選択されていません。このまま進みますか？");
+            if (!ok) {
+              state.phase = prevPhase;
+              activatePhaseView(prevPhase);
+              updatePhaseSteps(prevPhase);
+              return;
+            }
           }
           // 未初期化、または削除候補が変わった場合に再構築する。
           if (p6NeedsRebuild()) {
@@ -1492,15 +1668,25 @@
   }
 
   // 終了操作。btnToRecoveryRecord（RECOVERY_COMPARE）から呼ぶ。
-  function endSession() {
+  // unanswered: [{ questionId, label }]（未回答の設問。QUESTION_UNANSWERED として終了確認と統合する）
+  function endSession(unanswered = []) {
     if (state.sessionEnded) return;
-    if (!confirm("学習を終了しますか？終了後は回答やマップを変更できなくなります。")) return;
     const prevPhase = state.phase;
+    const endMsg = "学習を終了しますか？終了後は回答やマップを変更できなくなります。";
+    if (unanswered.length > 0) {
+      const labels = [...new Set(unanswered.map(u => u.label))];
+      if (!confirmIncompleteAdvance("QUESTION_UNANSWERED", prevPhase, PHASE.SESSION_END,
+            `未回答：${labels.join("、")}。${endMsg}`,
+            { questionIds: unanswered.map(u => u.questionId) })) return;
+    } else if (!confirm(endMsg)) {
+      return;
+    }
     _endingSession = true;
     try {
       switchPhase(PHASE.SESSION_END);
     } finally {
       _endingSession = false;
+      _incompleteAdvancePending = false;
     }
     if (state.phase !== PHASE.SESSION_END) return;  // 遷移できなかった場合は終了扱いにしない
     const endedAt = new Date().toISOString();
@@ -1529,17 +1715,39 @@
       };
       window.addEventListener("keydown", _block, true);
       window.addEventListener("beforeinput", _block, true);
+      // [CHANGED flow-v4 段階2] pointer-events:none をやめ、編集につながるマウス操作だけを遮断する
+      // （wheel / scroll は遮断しないため、見直し中も画面内をスクロールできる）。
+      const LOCK_EVENTS = ["pointerdown", "mousedown", "mouseup", "click", "dblclick",
+                           "contextmenu", "dragstart", "drop", "touchstart"];
+      LOCK_EVENTS.forEach(type => window.addEventListener(type, e => {
+        if (!state.sessionEnded) return;
+        const t = e.target;
+        if (!t.closest) return;
+        if (t.closest(".app-header") || t.closest("#phase-end")) return;
+        if (!t.closest(".phase-view")) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+      }, true));
     }
-    // 3. 終了済み表示
+    // 3. 終了済み表示（クリックで終了画面に戻れる）
     const badge = $("sessionEndedBadge");
     if (badge) badge.hidden = false;
+    // 4. [NEW flow-v4 段階2] 初期化ボタンを無効化（凍結した測定値 atSessionEnd の消失を防ぐ）
+    const btnReset = $("btnReset");
+    if (btnReset) { btnReset.disabled = true; btnReset.title = "学習終了後は使用できません"; }
+    renderSegmentBadge();
   }
 
   function releaseSessionLock() {
     document.body.classList.remove("session-ended");
     const badge = $("sessionEndedBadge");
     if (badge) badge.hidden = true;
+    const btnReset = $("btnReset");
+    if (btnReset) { btnReset.disabled = false; btnReset.removeAttribute("title"); }
+    renderSegmentBadge();
   }
+  $("sessionEndedBadge")?.addEventListener("click", () => {
+    if (state.sessionEnded && state.phase !== PHASE.SESSION_END) switchPhase(PHASE.SESSION_END);
+  });
   // data-phase 属性の値を使うことで、DOM順の index に依存しない
   phaseSteps.forEach(s => s.addEventListener("click", () => switchPhase(parseInt(s.dataset.phase, 10))));
   $("btnStartMap").addEventListener("click", () => switchPhase(PHASE.ACUTE_MAP));
@@ -2571,6 +2779,7 @@
       sessionEnded:   state.sessionEnded,
       sessionEndedAt: state.sessionEndedAt,
       atSessionEnd:   state.sessionEndSnapshot,
+      segmentTimes:   buildSegmentTimes(), // [NEW flow-v4 段階2] 区間ごとの累積滞在時間
     };
   }
 
@@ -2864,10 +3073,11 @@
     // [NEW flow-v4] 学習終了後：終了状態とロックを解除する（データは消さない）
     if (state.sessionEnded) {
       if (!confirm("学習終了状態を解除して編集可能に戻しますか？（回答・マップは消えません）")) return;
+      // [CHANGED flow-v4 段階2] 通常はボタンが disabled のため到達しない安全策。
+      // 凍結した測定値（sessionEndSnapshot → atSessionEnd）は消さない。
       logOp("RESET", { target: "sessionEnd", sessionEndedAt: state.sessionEndedAt });
       state.sessionEnded       = false;
       state.sessionEndedAt     = null;
-      state.sessionEndSnapshot = null;
       releaseSessionLock();
       saveToLocalStorage();
       return;
@@ -6394,7 +6604,8 @@
     const hint = $("btnToPhase6Hint");
     if (!btn) return;
     const has = window.phase5Data.removals.length > 0;
-    btn.disabled = !has;
+    // [CHANGED flow-v4 段階2] 削除0件でも押せる（入場時に RECOVERY_REMOVAL_EMPTY の confirm を出す）
+    btn.disabled = false;
     if (hint) hint.style.display = has ? "none" : "block";
   }
 
@@ -7095,16 +7306,23 @@
     $("btnDiffNext")?.addEventListener("click", () => {
       // [ADDED flow-v2補修] walkthrough完走前の退出ゲート。disabled属性は使わない
       // （未完走退出の試行そのものをプロセス測定として残すため、クリックイベントは殺さない）。
+      // [CHANGED flow-v4 段階2] 未完走でも confirm 1回で退出できる（INCOMPLETE_ADVANCE）。
+      // OK 後は完走時と同じ経路（採点 → snap → 遷移）を通す。
       if (!_dwReachedComplete) {
-        showToast("すべての修正ポイントを確認してから進んでください（右側パネルの「次へ」で最後まで進めます）", 3500);
-        logOp("WALKTHROUGH_EXIT_BLOCKED", {
-          stage: _dwStage,
-          bundleIndex: _dwBundleIndex,
-          bundleCount: _dwBundles.length,
-          stageInBundle: _dwStageInBundle,
-        });
-        return;
+        const N = _dwBundles.length;
+        const M = Math.max(0, Math.min(N, _dwBundleIndex + 1));
+        const toPhase = state.phase === PHASE.ACUTE_LAYER_DIFF ? PHASE.ACUTE_EDGE_MAP : PHASE.ACUTE_COMPARE;
+        if (!confirmIncompleteAdvance("WALKTHROUGH_INCOMPLETE", state.phase, toPhase,
+              `確認していない修正ポイントが残っています（全${N}件中${M}件まで確認）。このまま進みますか？`,
+              { stage: _dwStage, bundleIndex: _dwBundleIndex, bundleCount: N, stageInBundle: _dwStageInBundle })) return;
       }
+      try {
+        _acuteDiffExit();
+      } finally {
+        _incompleteAdvancePending = false;
+      }
+    });
+    function _acuteDiffExit() {
       if (state.phase === PHASE.ACUTE_LAYER_DIFF) {
         // 採点 → snap → 遷移 の順序が測定上決定的に重要（snap後に採点すると修正到達度が測れない）。
         // snap は canvasWrap が canvasWrap-diff（表示中）を指している switchPhase 前に呼ぶこと（1-4）。
@@ -7121,7 +7339,7 @@
       }
       gradeRevisedPhase();
       switchPhase(PHASE.ACUTE_COMPARE);
-    });
+    }
     // [NEW] bundleループのナビゲーション。ヒントステージでは「修正できた」クリックで
     // 採点＋ログのみ行いbundleインデックスは進めず、同じbundleの正解ステージへ遷移する。
     $("dwPrev")?.addEventListener("click", () => {
@@ -7179,13 +7397,24 @@
       saveToLocalStorage();
     });
     $("btnRecoveryDiffNext")?.addEventListener("click", () => {
+      // [CHANGED flow-v4 段階2] 未完走でも confirm 1回で退出できる（INCOMPLETE_ADVANCE）。
+      // OK 後は完走時と同じ経路（採点 → スナップ → 遷移）を通す。
+      const _rToPhase = state.phase === PHASE.RECOVERY_LAYER_DIFF ? PHASE.RECOVERY_DIFF
+        : (FEATURES.ENABLE_TRANSITION_COMPARE_PHASE ? PHASE.TRANSITION_COMPARE : PHASE.RECOVERY_COMPARE);
       if (!_rdwReachedComplete) {
-        showToast("すべての修正ポイントを確認してから進んでください（右側パネルの「次へ」で最後まで進めます）", 3500);
-        logOp("RECOVERY_WALKTHROUGH_EXIT_BLOCKED", {
-          stage: _rdwStage, bundleIndex: _rdwBundleIndex, bundleCount: _rdwBundles.length, stageInBundle: _rdwStageInBundle,
-        });
-        return;
+        const N = _rdwBundles.length;
+        const M = Math.max(0, Math.min(N, _rdwBundleIndex + 1));
+        if (!confirmIncompleteAdvance("RECOVERY_WALKTHROUGH_INCOMPLETE", state.phase, _rToPhase,
+              `確認していない修正ポイントが残っています（全${N}件中${M}件まで確認）。このまま進みますか？`,
+              { stage: _rdwStage, bundleIndex: _rdwBundleIndex, bundleCount: N, stageInBundle: _rdwStageInBundle })) return;
       }
+      try {
+        _recoveryDiffExit(_rToPhase);
+      } finally {
+        _incompleteAdvancePending = false;
+      }
+    });
+    function _recoveryDiffExit(toPhase) {
       if (state.phase === PHASE.RECOVERY_LAYER_DIFF) {
         // 採点 → スナップ → 遷移 の順序が測定上決定的に重要（addendum B §8-1）。
         const revisedResult = gradeRecoveryLayerRevisedPhase();
@@ -7199,8 +7428,8 @@
       }
       gradeRecoveryEdgeRevisedPhase();
       // [CHANGED flow-v4] TRANSITION_COMPARE 無効時は RECOVERY_COMPARE へ直結
-      switchPhase(FEATURES.ENABLE_TRANSITION_COMPARE_PHASE ? PHASE.TRANSITION_COMPARE : PHASE.RECOVERY_COMPARE);
-    });
+      switchPhase(toPhase);
+    }
     $("rdwPrev")?.addEventListener("click", () => {
       if (_rdwBundleIndex <= -1) return;
       showRecoveryBundleStep(_rdwBundleIndex - 1, "prev");
@@ -7223,12 +7452,25 @@
     // [ADDED] 「問3・4へ進む」ボタン（ACUTE_COMPARE → ACUTE_RECORD）
     $("btnToAcuteRecord")?.addEventListener("click", () => {
       const ans = phaseData.acute.answers;
-      const allFilled = ans.p3q1 && ans.p3q2sel && ans.p3q2;
-      if (!allFilled) {
-        if (!confirm("未入力の設問があります。続けますか？")) return;
-      }
       // [CHANGED flow-v4] ACUTE_RECORD 無効時は RECOVERY_PREP へ直結
-      switchPhase(FEATURES.ENABLE_ACUTE_RECORD_PHASE ? PHASE.ACUTE_RECORD : PHASE.RECOVERY_PREP);
+      const toPhase = FEATURES.ENABLE_ACUTE_RECORD_PHASE ? PHASE.ACUTE_RECORD : PHASE.RECOVERY_PREP;
+      // [CHANGED flow-v4 段階2] 未回答は confirm 1回（QUESTION_UNANSWERED）
+      const unanswered = [
+        !ans.p3q1    && { questionId: "acute.p3q1",    label: "問1" },
+        !ans.p3q2sel && { questionId: "acute.p3q2sel", label: "問2" },
+        !ans.p3q2    && { questionId: "acute.p3q2",    label: "問2" },
+      ].filter(Boolean);
+      if (unanswered.length > 0) {
+        const labels = [...new Set(unanswered.map(u => u.label))];
+        if (!confirmIncompleteAdvance("QUESTION_UNANSWERED", state.phase, toPhase,
+              `未回答：${labels.join("、")}。このまま進みますか？`,
+              { questionIds: unanswered.map(u => u.questionId) })) return;
+      }
+      try {
+        switchPhase(toPhase);
+      } finally {
+        _incompleteAdvancePending = false;
+      }
     });
     if (!FEATURES.ENABLE_ACUTE_RECORD_PHASE && $("btnToAcuteRecord")) {
       $("btnToAcuteRecord").textContent = "復旧期準備へ進む →";
@@ -7349,17 +7591,26 @@
     });
 
     $("btnToRecoveryRecord")?.addEventListener("click", () => {
-      const { q6, q7 } = phaseData.recoveryCompare.answers;
-      if (!q6) {
-        showToast("問3で構造的差異を入力してください", 3000);
-        return;
+      const { q6, q7, q7sel } = phaseData.recoveryCompare.answers;
+      // [CHANGED flow-v4 段階2] 未回答は停止せず confirm 1回（QUESTION_UNANSWERED）
+      const unanswered = [
+        !q6    && { questionId: "recoveryCompare.q6",    label: "問3" },
+        !q7sel && { questionId: "recoveryCompare.q7sel", label: "問4" },
+        !q7    && { questionId: "recoveryCompare.q7",    label: "問4" },
+      ].filter(Boolean);
+      // [CHANGED flow-v4] RECOVERY_RECORD 無効時は学習終了操作（終了確認と未回答確認を1回に統合）
+      if (!FEATURES.ENABLE_RECOVERY_RECORD_PHASE) { endSession(unanswered); return; }
+      if (unanswered.length > 0) {
+        const labels = [...new Set(unanswered.map(u => u.label))];
+        if (!confirmIncompleteAdvance("QUESTION_UNANSWERED", state.phase, PHASE.RECOVERY_RECORD,
+              `未回答：${labels.join("、")}。このまま進みますか？`,
+              { questionIds: unanswered.map(u => u.questionId) })) return;
       }
-      if (!q7) {
-        if (!confirm("問4 が未入力です。このまま進みますか？")) return;
+      try {
+        switchPhase(PHASE.RECOVERY_RECORD);
+      } finally {
+        _incompleteAdvancePending = false;
       }
-      // [CHANGED flow-v4] RECOVERY_RECORD 無効時は学習終了操作
-      if (FEATURES.ENABLE_RECOVERY_RECORD_PHASE) switchPhase(PHASE.RECOVERY_RECORD);
-      else endSession();
     });
     if (!FEATURES.ENABLE_RECOVERY_RECORD_PHASE && $("btnToRecoveryRecord")) {
       $("btnToRecoveryRecord").textContent = "学習を終了する";
@@ -8634,6 +8885,8 @@
             ms: Date.now() - saved.phaseStartTime, interruptedByReload: true,
           });
         }
+        // [NEW flow-v4 段階2] 区間タイマーの復元（リロードまでの空白を saved.currentPhase の区間に加算）
+        restoreSegTimer(saved.currentPhase, state.sessionEnded);
         Object.assign(phaseData, saved.phaseData);
         if (saved.phase5Data) Object.assign(window.phase5Data, saved.phase5Data);
         // 規範マップのロード完了を待ってから復元する（採点が未定義規範マップで
@@ -8685,6 +8938,8 @@
         }
       } else {
         clearLocalStorage();
+        clearSegTimerStorage();
+        _resetSegTimer();
       }
       // operationLog 確定後、完遂判定 → UI 更新
       if (tutorialHasFinishedEarlier()) {
@@ -8696,10 +8951,13 @@
     }
     // Phase 0 に居て未完遂なら TUTORIAL_START
     tutorialBeginIfVisible();
+    // [NEW flow-v4 段階2] 区間タイマー開始（復元しない場合は新規に数え始める）
+    if (!saved) { clearSegTimerStorage(); _resetSegTimer(); }
+    startSegTimer();
   })();
 
   // 被験者切替・実験者向け運用 API
-  window.__icsClearStorage = clearLocalStorage;
+  window.__icsClearStorage = () => { clearLocalStorage(); clearSegTimerStorage(); };
 
   window.addEventListener("blur", () => { logOp("WINDOW_BLUR", {}); });
   window.addEventListener("focus", () => { logOp("WINDOW_FOCUS", {}); });
