@@ -445,19 +445,25 @@
       explanation: "実際の対応では、県庁と応援チームの間で決まった活動が保健所に伝わらず、保健所が現場ですでに取り組んでいた活動と重なることがありました。\n\nこの差異でまず問題になったのは、活動の情報が、現地の調整役である保健所に届かなかったことです。そのため、最も関係が深い原則は**コミュニケーション**です。\n\nまた、現地では保健所による調整と、県庁からの直接の指示が並ぶことになります。その意味で、**指揮一元化**の観点からも注意が必要な構造です。ただし、派遣元である県庁が応援チームとやり取りすること自体は、行政上必要な場合もあります。直接のやり取りがあるだけで原則違反とは言えません。問題は、そのやり取りの内容が現地の調整の場に共有されなかった点にあります。\n\nその後、保健所は福祉系の応援チームを集めた会議を開き、活動の重複を避けて情報を共有する場を作りました。基準となる組織構造で、応援チームが市町村や保健所の調整のもとに位置づけられているのは、このような情報の集約点を現地に置くためです。",
     },
     [PHASE.RECOVERY_COMPARE]: {
-      caseId: "recovery-municipal-coordination", caseVersion: "v1-2026-10-11",
+      caseId: "recovery-municipal-coordination", caseVersion: "v2-2026-10-11",
       focusNodes: ["C県A保健所", "市町村保健センター", "JRAT", "仮設住宅"],
+      // [NEW v2] 補助の強調対象（欠けていても案内は出さない。記録のみ）
+      secondaryNodes: ["DWAT", "DCAT"],
       learnerEdges: [
         { from: "市町村保健センター", to: "JRAT",               label: "連携協力", undirected: true },
         { from: "JRAT",               to: "仮設住宅",           label: "支援" },
         { from: "C県A保健所",         to: "市町村保健センター", label: "連携協力", undirected: true, role: "secondary" },
+        { from: "市町村保健センター", to: "DWAT",               label: "連携協力", undirected: true, role: "secondary" },
+        { from: "市町村保健センター", to: "DCAT",               label: "連携協力", undirected: true, role: "secondary" },
       ],
       actualEdges: [
         { from: "C県A保健所", to: "JRAT",               label: "連携協力", undirected: true },
         { from: "JRAT",       to: "仮設住宅",           label: "支援" },
         { from: "C県A保健所", to: "市町村保健センター", label: "連携協力", undirected: true, role: "secondary" },
+        { from: "C県A保健所", to: "DWAT",               label: "連携協力", undirected: true, role: "secondary" },
+        { from: "C県A保健所", to: "DCAT",               label: "連携協力", undirected: true, role: "secondary" },
       ],
-      focusText: "保健所・市町村保健センター・応援チーム（JRAT）の関係を比べてください。\n復旧期には、避難所での活動に加えて、仮設住宅や在宅での継続的な生活支援が中心になっていきます。",
+      focusText: "保健所・市町村保健センター・応援チーム（JRATなど）の関係を比べてください。\n復旧期には、避難所での活動に加えて、仮設住宅や在宅での継続的な生活支援が中心になっていきます。",
       explanation: "基準となる組織構造では、復旧期の応援チームの連携相手は市町村保健センターです。一方、実際の組織構造では、保健所が応援チームと直接連携しています。\n\n実際の対応でも、保健所は福祉系の応援チームを集めた会議を開き、活動の重複を避けるための調整を担っていました。しかし、会議で扱う内容がB村の課題中心になってきたため、途中から会議の進行をB村に引き継ぎました。実際の組織構造は、この移行が進む前の姿として見ることができます。\n\n基準となる組織構造が市町村を調整の中心に置くのは、**統制範囲**の考え方によるものです。復旧期の支援は、仮設住宅や在宅など地域ごとに細かく、長く続きます。保健所が管内全域の応援チームを直接束ね続けると、調整が保健所に集中し、一つの組織が無理なく調整できる範囲を超えてしまいます。地域の状況をよく知る市町村が身近な調整を担い、保健所は市町村を支える役割に移ることで、それぞれの調整の範囲が適切に保たれます。\n\nただし、移行は一度に行うものではありません。B村では、他県からの中長期の応援が入るまでの間、県の保健師が村に常駐して統括保健師を支え、その後、支援を保健所に移しました。常駐の終了後も、保健所は村の求めに応じて、仮設住宅の健康調査などを支援しています。市町村の体制が回復する状況を見ながら、段階的に調整の中心を移していくことが大切です。",
     },
   });
@@ -560,6 +566,9 @@
     sessionEnded: false,
     sessionEndedAt: null,
     sessionEndSnapshot: null,  // 終了時点の buildExportObject()（operationLog を除く）のディープコピー
+    // [NEW 修正案A] キャンバス（state.nodes/edges）をどの phaseData[key] から読み込んだか。
+    // saveToLocalStorage の書き戻しはこのキーが今の画面のキーと一致するときだけ行う。
+    canvasSourceKey: null,
   };
 
   window.idealMapAcute     = null;
@@ -640,17 +649,23 @@
     compareStudy:      freshCompareStudy(),  // [NEW stage3] 比較・分析（注目箇所・原則選択・解説）
   };
 
-  function savePhaseData(key) {
+  // キャンバスを phaseData[key] に書き戻す（保存はしない）。savePhaseData と saveToLocalStorage の共通部分。
+  function writeCanvasToPhaseData(key) {
     phaseData[key] = {
       nodes: state.nodes, edges: state.edges,
       answers: { ...state.answers },
       selectedNodeId: state.selectedNodeId, selectedEdgeId: state.selectedEdgeId,
     };
+  }
+
+  function savePhaseData(key) {
+    writeCanvasToPhaseData(key);
     saveToLocalStorage();
   }
 
   function loadPhaseData(key) {
     const d = phaseData[key];
+    state.canvasSourceKey = key; // [NEW 修正案A] 読込元を記録
     state.nodes = d.nodes; state.edges = d.edges;
     state.answers = { ...d.answers };
     state.selectedNodeId = d.selectedNodeId; state.selectedEdgeId = d.selectedEdgeId;
@@ -987,6 +1002,17 @@
   // LOCAL STORAGE — 自動保存・復元
   // ================================================================
   function saveToLocalStorage() {
+    // [NEW 修正案A] 編集中のキャンバスを phaseData に書き戻してから保存する。
+    // 削除・初期化はキャンバスの配列を作り直す（filter 等）ため phaseData との参照が切れ、従来は画面を
+    // 離れるまで保存に反映されなかった。判定には activePhaseKey ではなく state.phase を使う
+    // （画面遷移の途中で古いキャンバスを新しい画面のキーに書かないため）。
+    const _cfg = MAP_PHASE_CONFIG[state.phase];
+    if (_cfg && !_cfg.isReadOnly                 // (a) 編集できるマップ画面
+        && state.canvasSourceKey === _cfg.key     // (b) キャンバスの読込元が今の画面のキー
+        && !_restoringFromStorage                 // (c) 復元処理中ではない
+        && !state.sessionEnded) {                 // (d) 終了後ではない
+      writeCanvasToPhaseData(_cfg.key);
+    }
     try {
       const payload = {
         version:        STORAGE_SCHEMA_VERSION,
@@ -1441,7 +1467,7 @@
           );
         } else if (mapLoadStatus.actualAcute === "error") {
           actualCanvas.innerHTML =
-            '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ の読み込みに失敗しました</div>';
+            '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際の組織構造マップの読み込みに失敗しました</div>';
           markCompareActualUnavailable(PHASE.ACUTE_COMPARE); // [NEW stage3]
         } else {
           actualCanvas.innerHTML =
@@ -2883,7 +2909,10 @@
 
   function buildExportObject() {
     // 現フェーズの状態を一時保存（読み取り専用フェーズは保存不要）
-    if (activePhaseKey && !MAP_PHASE_CONFIG[state.phase]?.isReadOnly)
+    // [FIX] 今の画面が編集できるマップ画面のときだけ書き戻す（switchPhase で画面を離れるときと同じ条件）。
+    // 従来はマップ以外の画面でも書き戻していたため、リロード直後（キャンバスが空・activePhaseKey が
+    // 初期値 "acute"）にエクスポート／終了すると phaseData.acute が空で上書きされていた。
+    if (activePhaseKey && MAP_PHASE_CONFIG[state.phase] && !MAP_PHASE_CONFIG[state.phase].isReadOnly)
       savePhaseData(activePhaseKey);
     return {
       version: 10, // [CHANGED] 9→10：recoveryBaseline/recoveryRevised/recoveryScore 追加（§3）
@@ -3001,6 +3030,9 @@
       fr.onload = () => {
         try {
           const obj = JSON.parse(fr.result);
+          // [NEW 修正案A] 読み込んだデータで phaseData を差し替えるため、旧キャンバスを書き戻さない
+          // （この後の saveToLocalStorage が、マップ画面で読み込んだ場合にインポート結果を潰すのを防ぐ）
+          state.canvasSourceKey = null;
           let hasConflict = false;
           const importedLogs = migrateLegacyLogs(obj);
           const oldSessionId = obj.sessionId || null;
@@ -3296,6 +3328,7 @@
       invalidatePhase6();
       logOp("RESET", { target: "phase5Removals" });
       renderPhase5Map();
+      saveToLocalStorage(); // [FIX 修正案A補] 初期化をリロード後も保持する（従来は保存されず、リロードで初期化前に戻った）
       return;
     }
     // 復旧期マップ：ノード・矢印のみクリア（再初期化を許可）
@@ -3309,6 +3342,7 @@
       clearArrowDrawState();
       logOp("RESET", { target: "recoveryMap" });
       renderAll();
+      saveToLocalStorage(); // [FIX 修正案A補] 同上（キャンバスの書き戻しで空の⑨と p6State.initialized=false が保存される）
       return;
     }
     const phaseLabel = state.phase === PHASE.RECOVERY_MAP ? "復旧期" : "急性期";
@@ -3321,6 +3355,7 @@
     const cc = $("charCount"); if (cc) cc.textContent = "0";
     logOp("RESET", { target: "activeMap", phaseKey: activePhaseKey });
     renderAll();
+    saveToLocalStorage(); // [FIX 修正案A補] 同上
   }
 
   // ================================================================
@@ -6663,6 +6698,7 @@
         : '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
       return;
     }
+    state.canvasSourceKey = null; // [NEW 修正案A] 読み取り専用の表示用コピー（phaseData のどのキーでもない）
     state.nodes           = window.idealMapAcute.nodes.map(n => ({ ...n }));
     state.edges           = window.idealMapAcute.edges.map(e => ({ ...e }));
     state.selectedNodeId  = null;
@@ -6854,6 +6890,8 @@
     phase6RemovalSignature = getRemovalSignature();
     phase6InitialNodeCount = phaseData.p6.nodes.length; // [NEW rev B-7] hasP6Edits() 用
     logOp("INIT_PHASE6", { nodeCount: phaseData.p6.nodes.length });
+    // [NEW 修正案A] phaseData.p6 を作り直したので、直後の loadPhaseData("p6") までは旧キャンバスを書き戻さない
+    state.canvasSourceKey = null;
   }
 
   // ================================================================
@@ -6951,7 +6989,7 @@
   // 注目箇所の強調（クラスの付け外しのみ。ノード・エッジのデータは変更しない）
   function applyCompareFocus(caseDef, side, nodes, edges, canvasEl, svgEl) {
     if (!caseDef || !canvasEl || !svgEl) return null;
-    canvasEl.querySelectorAll(".node").forEach(el => el.classList.remove("cmp-focus", "cmp-dim"));
+    canvasEl.querySelectorAll(".node").forEach(el => el.classList.remove("cmp-focus", "cmp-secondary", "cmp-dim"));
     svgEl.querySelectorAll("g[data-from]").forEach(g => g.classList.remove("cmp-focus", "cmp-secondary", "cmp-dim"));
 
     // 1. ノードの照合（1件だけ一致したものだけを強調。2件以上は ambiguous）
@@ -6964,18 +7002,33 @@
       else nodesAmbiguous.push(label);
     }
     const focusNodeIds = new Set(Object.values(labelToId));
+    // [NEW v2] 補助ノード（1件だけ一致したものを控えめに強調。欠けていても案内は出さない）
+    const secondaryNodesMatched = [], secondaryNodesMissing = [], secondaryNodesAmbiguous = [];
+    const secondaryNodeIds = new Set();
+    for (const label of (caseDef.secondaryNodes || [])) {
+      const hits = (nodes || []).filter(n => n.label === label);
+      if (hits.length === 1) { labelToId[label] = hits[0].id; secondaryNodeIds.add(hits[0].id); secondaryNodesMatched.push(label); }
+      else if (hits.length === 0) secondaryNodesMissing.push(label);
+      else secondaryNodesAmbiguous.push(label);
+    }
 
     // 2. エッジの照合（両端が一意・ラベル一致・向き一致。undirected は逆向きも可）
     const defs = side === "learner" ? caseDef.learnerEdges : caseDef.actualEdges;
     const edgeName = d => `${d.from}${d.undirected ? "—" : "→"}${d.to}（${d.label}）`;
     const edgesMatched = [], edgesMissing = [];
+    const secondaryEdgesMatched = [], secondaryEdgesMissing = [];
     const roleByEid = new Map();
     for (const d of defs) {
       const a = labelToId[d.from], b = labelToId[d.to];
       const hits = (a && b) ? (edges || []).filter(e => e.label === d.label &&
         ((e.from === a && e.to === b) || (d.undirected && e.from === b && e.to === a))) : [];
-      if (hits.length === 0) { edgesMissing.push(edgeName(d)); continue; }
+      if (hits.length === 0) {
+        edgesMissing.push(edgeName(d));
+        if (d.role === "secondary") secondaryEdgesMissing.push(edgeName(d));
+        continue;
+      }
       edgesMatched.push(edgeName(d));
+      if (d.role === "secondary") secondaryEdgesMatched.push(edgeName(d));
       const role = d.role === "secondary" ? "secondary" : "focus";
       hits.forEach(e => {
         const eid = e.id ?? `${e.from}|${e.to}|${e.label}`;
@@ -6985,7 +7038,8 @@
 
     // 3. 強調しなかったノード・エッジは薄表示
     canvasEl.querySelectorAll(".node").forEach(el =>
-      el.classList.add(focusNodeIds.has(el.dataset.id) ? "cmp-focus" : "cmp-dim"));
+      el.classList.add(focusNodeIds.has(el.dataset.id) ? "cmp-focus"
+        : secondaryNodeIds.has(el.dataset.id) ? "cmp-secondary" : "cmp-dim"));
     svgEl.querySelectorAll("g[data-from]").forEach(g => {
       const role = roleByEid.get(g.dataset.eid);
       g.classList.add(role === "focus" ? "cmp-focus" : role === "secondary" ? "cmp-secondary" : "cmp-dim");
@@ -7002,12 +7056,15 @@
         note.hidden = nodesMissing.length === 0;
       }
       if (_cmpVisit && _cmpVisit.phase === phase) {
-        _cmpVisit.learnerFocusMissing = { nodes: nodesMissing, edges: edgesMissing, ambiguous: nodesAmbiguous };
+        _cmpVisit.learnerFocusMissing = { nodes: nodesMissing, edges: edgesMissing, ambiguous: nodesAmbiguous,
+                                          secondaryNodes: secondaryNodesMissing };
       }
     }
 
     // 5. 記録
-    const detail = { caseId: caseDef.caseId, side, nodesMatched, nodesMissing, nodesAmbiguous, edgesMatched, edgesMissing };
+    const detail = { caseId: caseDef.caseId, side, nodesMatched, nodesMissing, nodesAmbiguous, edgesMatched, edgesMissing,
+                     secondaryNodesMatched, secondaryNodesMissing, secondaryNodesAmbiguous,
+                     secondaryEdgesMatched, secondaryEdgesMissing };
     logOp("COMPARE_FOCUS_SHOWN", detail);
     return detail;
   }
@@ -9284,6 +9341,7 @@
         if (saved.phase5Data) Object.assign(window.phase5Data, saved.phase5Data);
         // [NEW stage3] compareStudy は phaseData に含めて保存している。欠けていれば初期値で補う。
         phaseData.compareStudy = normalizeCompareStudy(phaseData.compareStudy);
+        state.canvasSourceKey = null; // [NEW 修正案A] 復元した phaseData はまだキャンバスに読み込んでいない
         // [NEW flow-v4 段階2補修] ⑨の状態変数の復元（phaseData.p6・phase5Data の復元後、switchPhase の前）。
         // (a) 保存済みの p6State をそのまま戻す。(b) p6State の無い旧データは importJSON と同じ規則で導出する。
         // シグネチャは getRemovalSignature() の値をそのまま保存・比較する（独自に組み立てない）。
