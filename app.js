@@ -726,7 +726,18 @@
       s.classList.toggle("active", sp === p);
       s.classList.toggle("done",   spIdx >= 0 && spIdx < curIdx);
     });
+    // [NEW] ステップの並びが横スクロールになる幅でも、現在のステップが見える位置に来るようにする。
+    // 先に区間バッジを新しい区間で描き直す（バッジの幅が変わると並びの幅も変わり、位置がずれるため）。
+    renderSegmentBadge();
+    scrollActiveStepIntoView();
   }
+  function scrollActiveStepIntoView() {
+    const activeStep = document.querySelector(".phase-step.active");
+    if (activeStep && typeof activeStep.scrollIntoView === "function") {
+      activeStep.scrollIntoView({ inline: "nearest", block: "nearest" });
+    }
+  }
+  window.addEventListener("resize", () => scrollActiveStepIntoView());
 
   let canvasEl           = null;
   let svgEl              = null;

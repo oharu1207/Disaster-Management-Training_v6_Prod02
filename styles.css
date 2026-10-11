@@ -1917,3 +1917,31 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
 /* [NEW 補修] 準備画面ツールバー：操作案内と件数表示を分ける */
 #phase-5 .p5-toolbar-hint { color: var(--text-dim); }
 #phase-5 #canvasStat-p5 { flex: 0 0 auto; }
+
+/* ================================================================
+   [NEW] ヘッダー：システム名の折り返し防止と、狭い幅での配置
+   1920px で 11ステップ・区間バッジ・ボタンが1行に収まるよう、余白・番号の丸・矢印を詰めている
+   （文字サイズは変えない。区間バッジは 16px 太字のまま）。
+   ================================================================ */
+.app-header { padding: 0 8px; }
+.header-left { flex: 1 1 auto; min-width: 0; gap: 8px; }
+.logo { flex-shrink: 0; }
+.logo-name { white-space: nowrap; flex-shrink: 0; }
+/* ステップの並び：入りきらない場合はこの中だけで横スクロール */
+.phase-track { flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; gap: 0; }
+.phase-track::-webkit-scrollbar { height: 4px; }
+.phase-track::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.phase-step { padding: 4px; gap: 2px; }
+.step-num { width: 16px; height: 16px; font-size: 10px; }
+.step-label { letter-spacing: -0.2px; }
+.phase-arrow { font-size: 11px; margin: 0 1px; }
+/* 右側（区間タイマー・終了済みバッジ・ボタン）は大きさを変えない */
+.header-right { flex-shrink: 0; gap: 4px; margin-left: 4px; }
+.header-right > * { flex-shrink: 0; }
+.header-right button { padding: 7px 8px; }
+.segment-badge { padding: 5px 10px; }
+.segment-badge, .session-ended-badge, #btnExport, #btnImport, #btnReset { flex-shrink: 0; white-space: nowrap; }
+/* 幅 1600px 未満：システム名を隠し「ICS」ロゴだけにする（.logo の title で確認できる） */
+@media (max-width: 1599px) {
+  .logo-name { display: none; }
+}
