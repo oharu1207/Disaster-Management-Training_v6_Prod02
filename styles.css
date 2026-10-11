@@ -1992,3 +1992,19 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
 .cmp-radio-item input[type="radio"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; padding: 0; }
 .cmp-radio-ja { flex: 0 0 auto; }
 .cmp-radio-en { flex: 0 1 auto; }
+
+/* [NEW 補修・案A] 縦が狭い画面（innerHeight 800px 以下）：比較画面の下部パネルを約 260px に詰める。
+   選択肢カード 36px・設問文 14px。選択肢3つと「解説を確認する」はスクロールなしで見える高さを保つ。 */
+@media (max-height: 800px) {
+  .cmp-panel { padding: 8px 14px; }
+  .cmp-step { padding: 8px 12px; gap: 5px; }
+  .cmp-step-title { font-size: 12px; }
+  .cmp-question { font-size: 14px; line-height: 1.35; }
+  .cmp-radio-group { gap: 6px; }
+  .cmp-radio-item { height: 36px; }
+  .cmp-explain-btn-row button { padding: 5px 12px; }
+  .cmp-panel > .compare-qa-btn-row { bottom: 8px; }
+  .cmp-panel > .compare-qa-btn-row button { padding: 6px 14px; }
+  .cmp-step-explain { margin-bottom: 40px; }
+  .cmp-more-hint { bottom: -8px; margin: 4px -12px -8px; }
+}
