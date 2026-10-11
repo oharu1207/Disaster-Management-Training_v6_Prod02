@@ -1824,3 +1824,70 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
 .segment-badge:empty { display: none; }
 .segment-badge.seg-over { background: #c62828; color: #fff; border-color: #c62828; }
 .segment-badge.seg-ended { color: var(--text-dim); }
+
+/* ================================================================
+   [NEW stage3] 比較・分析フェーズ：比較学習パネルと自動強調
+   既存の編集・差分提示用スタイルは変更しない（追加のみ）。
+   パネルは固定高さにし、解説を開いてもマップ領域の大きさが変わらないようにする。
+   ================================================================ */
+.cmp-panel { display: flex; flex-direction: column; gap: 6px; padding: 10px 16px; }
+.cmp-study {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.9fr) minmax(0, 1.6fr);
+  gap: 12px;
+  height: 236px;
+}
+.cmp-step {
+  display: flex; flex-direction: column; gap: 6px;
+  min-height: 0; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border2); border-radius: 10px;
+  padding: 10px 12px;
+}
+.cmp-step-title { font-size: 13px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.cmp-step-no {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+  padding: 2px 7px; border-radius: 999px;
+  background: rgba(255, 209, 102, 0.16); color: var(--yellow); border: 1px solid rgba(255, 209, 102, 0.45);
+}
+.cmp-lead { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+.cmp-focus-text {
+  font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-line;
+  border-left: 3px solid var(--yellow); padding-left: 10px;
+}
+.cmp-missing-note {
+  font-size: 12px; line-height: 1.6; color: var(--text);
+  background: rgba(77, 143, 255, 0.10); border: 1px dashed var(--accent); border-radius: 8px;
+  padding: 6px 9px;
+}
+.cmp-missing-note[hidden] { display: none; }
+.cmp-question { font-size: 12.5px; font-weight: 700; color: var(--text); line-height: 1.55; }
+.cmp-radio-group { display: flex; flex-direction: column; gap: 6px; }
+.cmp-radio-item {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3);
+  font-size: 13px; font-weight: 700; color: var(--text);
+}
+.cmp-radio-item:hover { border-color: var(--accent); }
+.cmp-radio-item:has(input:checked) { border-color: var(--yellow); background: rgba(255, 209, 102, 0.10); }
+.cmp-radio-item input { accent-color: var(--yellow); margin: 0; }
+.cmp-radio-sub { font-size: 10.5px; font-weight: 400; color: var(--text-dim); margin-left: 4px; }
+.cmp-explain-btn-row { display: flex; justify-content: flex-end; margin-top: auto; }
+.cmp-explain-btn-row button:disabled { opacity: 0.45; cursor: not-allowed; }
+.cmp-explanation { font-size: 13px; line-height: 1.75; color: var(--text); }
+.cmp-explanation[hidden] { display: none; }
+.cmp-explanation strong { color: var(--yellow); font-weight: 800; }
+.cmp-explanation-placeholder { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.cmp-explanation-placeholder[hidden] { display: none; }
+
+/* 自動強調（赤＝エラー表示とは別の強調色を使う） */
+.phase-canvas .node.cmp-focus {
+  border-width: 3px; border-color: var(--yellow);
+  filter: brightness(1.18);
+  box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.25), 0 0 14px rgba(255, 209, 102, 0.35);
+  z-index: 3;
+}
+.phase-canvas .node.cmp-dim { opacity: 0.3; }
+.phase-svg-layer g.cmp-focus path { stroke-width: 3.5px; }
+.phase-svg-layer g.cmp-focus { filter: drop-shadow(0 0 4px rgba(255, 209, 102, 0.85)); }
+.phase-svg-layer g.cmp-secondary { opacity: 0.7; }
+.phase-svg-layer g.cmp-dim { opacity: 0.15; }

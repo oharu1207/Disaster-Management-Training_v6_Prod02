@@ -414,7 +414,9 @@
   </div>
 
   <!-- 記述問題パネル（下段・横断） -->
-  <div class="compare-qa-panel" id="compareQaPanel">
+  <div class="compare-qa-panel cmp-panel" id="compareQaPanel">
+    <!-- [CHANGED stage3] 旧設問（問1・問2）は削除せず非表示（既存の参照・データキーを保持するため） -->
+    <div class="legacy-questions" hidden>
     <div class="compare-qa-inner">
       <div class="compare-qa-block">
         <label class="compare-qa-label">
@@ -449,11 +451,34 @@
         <textarea id="p3q2Answer" rows="2"
           placeholder="例）…の構造はICSの…の原則に違反している。（「該当なし」を選んだ場合は、3原則に当たらない理由を述べよ）"></textarea>
         <div class="char-count"><span id="p3q2CharCount">0</span> / 100 字</div>
-        <div class="compare-qa-btn-row">
-          <button id="btnCompareBack" class="btn-secondary">← マップ修正に戻る</button>
-          <button id="btnToAcuteRecord" class="btn-primary">問3・4へ進む →</button>
+      </div>
+    </div>
+    </div><!-- /legacy-questions -->
+    <!-- [NEW stage3] 比較学習パネル（STEP 1 注目箇所 → STEP 2 原則の選択 → STEP 3 解説） -->
+    <div class="cmp-study" id="cmpA-study">
+      <div class="cmp-step">
+        <div class="cmp-step-title"><span class="cmp-step-no">STEP 1</span>ここに注目</div>
+        <div class="cmp-lead">注目箇所を確認し、ICS原則を1つ選んでから解説を読んでください。</div>
+        <div id="cmpA-focusText" class="cmp-focus-text"></div>
+        <div id="cmpA-missingNote" class="cmp-missing-note" hidden></div>
+      </div>
+      <div class="cmp-step">
+        <div class="cmp-step-title"><span class="cmp-step-no">STEP 2</span>原則の選択</div>
+        <div class="cmp-question">提示された構造的差異を理解するうえで、最も重要だと思うICS原則を1つ選んでください。</div>
+        <div class="cmp-radio-group" id="cmpA-radios" data-name="cmpA-principle"></div>
+        <div class="cmp-explain-btn-row">
+          <button id="cmpA-btnExplain" class="btn-secondary" disabled>解説を確認する</button>
         </div>
       </div>
+      <div class="cmp-step cmp-step-explain">
+        <div class="cmp-step-title"><span class="cmp-step-no">STEP 3</span>解説</div>
+        <div id="cmpA-explanationPlaceholder" class="cmp-explanation-placeholder">原則を選んで「解説を確認する」を押すと、ここに解説が表示されます。</div>
+        <div id="cmpA-explanation" class="cmp-explanation" hidden></div>
+      </div>
+    </div>
+    <div class="compare-qa-btn-row">
+      <button id="btnCompareBack" class="btn-secondary">← マップ修正に戻る</button>
+      <button id="btnToAcuteRecord" class="btn-primary">問3・4へ進む →</button>
     </div>
   </div>
 
@@ -863,7 +888,9 @@
   </div>
 
   <!-- 記述問題パネル（下段・横断） -->
-  <div class="compare-qa-panel" id="rcQaPanel">
+  <div class="compare-qa-panel cmp-panel" id="rcQaPanel">
+    <!-- [CHANGED stage3] 旧設問（問3・問4）は削除せず非表示（既存の参照・データキーを保持するため） -->
+    <div class="legacy-questions" hidden>
     <div class="compare-qa-inner">
       <div class="compare-qa-block">
         <label class="compare-qa-label">
@@ -898,10 +925,33 @@
         <textarea id="rcQ7Answer" rows="2"
           placeholder="例）急性期では…であったが、復旧期には…（「該当なし」を選んだ場合は、3原則に当たらない理由を述べよ）"></textarea>
         <div class="char-count"><span id="rcQ7CharCount">0</span> / 200 字</div>
-        <div class="compare-qa-btn-row">
-          <button id="btnToRecoveryRecord" class="btn-primary">対応検証記録へ進む →</button>
+      </div>
+    </div>
+    </div><!-- /legacy-questions -->
+    <!-- [NEW stage3] 比較学習パネル（STEP 1 注目箇所 → STEP 2 原則の選択 → STEP 3 解説） -->
+    <div class="cmp-study" id="cmpR-study">
+      <div class="cmp-step">
+        <div class="cmp-step-title"><span class="cmp-step-no">STEP 1</span>ここに注目</div>
+        <div class="cmp-lead">注目箇所を確認し、ICS原則を1つ選んでから解説を読んでください。</div>
+        <div id="cmpR-focusText" class="cmp-focus-text"></div>
+        <div id="cmpR-missingNote" class="cmp-missing-note" hidden></div>
+      </div>
+      <div class="cmp-step">
+        <div class="cmp-step-title"><span class="cmp-step-no">STEP 2</span>原則の選択</div>
+        <div class="cmp-question">提示された構造的差異を理解するうえで、最も重要だと思うICS原則を1つ選んでください。</div>
+        <div class="cmp-radio-group" id="cmpR-radios" data-name="cmpR-principle"></div>
+        <div class="cmp-explain-btn-row">
+          <button id="cmpR-btnExplain" class="btn-secondary" disabled>解説を確認する</button>
         </div>
       </div>
+      <div class="cmp-step cmp-step-explain">
+        <div class="cmp-step-title"><span class="cmp-step-no">STEP 3</span>解説</div>
+        <div id="cmpR-explanationPlaceholder" class="cmp-explanation-placeholder">原則を選んで「解説を確認する」を押すと、ここに解説が表示されます。</div>
+        <div id="cmpR-explanation" class="cmp-explanation" hidden></div>
+      </div>
+    </div>
+    <div class="compare-qa-btn-row">
+      <button id="btnToRecoveryRecord" class="btn-primary">対応検証記録へ進む →</button>
     </div>
   </div>
 

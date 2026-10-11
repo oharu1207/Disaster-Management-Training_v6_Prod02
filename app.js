@@ -420,6 +420,70 @@
     ]
   };
 
+  // [NEW stage3] 比較・分析フェーズの教材定義。文言の変更はここだけで完結させる。
+  // actualEdges は actual_map_*.json 上で存在・向き・ラベルを確認できたものだけを登録している。
+  const COMPARE_CASES = Object.freeze({
+    [PHASE.ACUTE_COMPARE]: {
+      caseId: "acute-prefecture-direct", caseVersion: "v1-2026-10-11",
+      focusNodes: ["県庁", "C県A保健所", "市町村保健センター", "DWAT", "JRAT"],
+      learnerEdges: [
+        { from: "県庁",               to: "C県A保健所",         label: "指示命令" },
+        { from: "C県A保健所",         to: "市町村保健センター", label: "連携協力", undirected: true },
+        { from: "市町村保健センター", to: "DWAT",               label: "連携協力", undirected: true },
+        { from: "市町村保健センター", to: "JRAT",               label: "連携協力", undirected: true },
+      ],
+      actualEdges: [
+        { from: "県庁",       to: "DWAT",               label: "指示命令" },
+        { from: "県庁",       to: "JRAT",               label: "指示命令" },
+        { from: "DWAT",       to: "県庁",               label: "情報伝達" },
+        { from: "JRAT",       to: "県庁",               label: "情報伝達" },
+        { from: "県庁",       to: "C県A保健所",         label: "指示命令" },
+        { from: "C県A保健所", to: "県庁",               label: "情報伝達" },
+        { from: "C県A保健所", to: "市町村保健センター", label: "連携協力", undirected: true },
+      ],
+      focusText: "県庁・保健所・応援チーム（DWAT・JRAT）の関係を比べてください。\n実際の対応では、福祉系の応援チームの活動のとりまとめは県庁で行われ、応援チームが現地の保健所と連携し始めたのは、しばらく後のことでした。",
+      explanation: "実際の対応では、県庁と応援チームの間で決まった活動が保健所に伝わらず、保健所が現場ですでに取り組んでいた活動と重なることがありました。\n\nこの差異でまず問題になったのは、活動の情報が、現地の調整役である保健所に届かなかったことです。そのため、最も関係が深い原則は**コミュニケーション**です。\n\nまた、現地では保健所による調整と、県庁からの直接の指示が並ぶことになります。その意味で、**指揮一元化**の観点からも注意が必要な構造です。ただし、派遣元である県庁が応援チームとやり取りすること自体は、行政上必要な場合もあります。直接のやり取りがあるだけで原則違反とは言えません。問題は、そのやり取りの内容が現地の調整の場に共有されなかった点にあります。\n\nその後、保健所は福祉系の応援チームを集めた会議を開き、活動の重複を避けて情報を共有する場を作りました。基準となる組織構造で、応援チームが市町村や保健所の調整のもとに位置づけられているのは、このような情報の集約点を現地に置くためです。",
+    },
+    [PHASE.RECOVERY_COMPARE]: {
+      caseId: "recovery-municipal-coordination", caseVersion: "v1-2026-10-11",
+      focusNodes: ["C県A保健所", "市町村保健センター", "JRAT", "仮設住宅"],
+      learnerEdges: [
+        { from: "市町村保健センター", to: "JRAT",               label: "連携協力", undirected: true },
+        { from: "JRAT",               to: "仮設住宅",           label: "支援" },
+        { from: "C県A保健所",         to: "市町村保健センター", label: "連携協力", undirected: true, role: "secondary" },
+      ],
+      actualEdges: [
+        { from: "C県A保健所", to: "JRAT",               label: "連携協力", undirected: true },
+        { from: "JRAT",       to: "仮設住宅",           label: "支援" },
+        { from: "C県A保健所", to: "市町村保健センター", label: "連携協力", undirected: true, role: "secondary" },
+      ],
+      focusText: "保健所・市町村保健センター・応援チーム（JRAT）の関係を比べてください。\n復旧期には、避難所での活動に加えて、仮設住宅や在宅での継続的な生活支援が中心になっていきます。",
+      explanation: "基準となる組織構造では、復旧期の応援チームの連携相手は市町村保健センターです。一方、実際の組織構造では、保健所が応援チームと直接連携しています。\n\n実際の対応でも、保健所は福祉系の応援チームを集めた会議を開き、活動の重複を避けるための調整を担っていました。しかし、会議で扱う内容がB村の課題中心になってきたため、途中から会議の進行をB村に引き継ぎました。実際の組織構造は、この移行が進む前の姿として見ることができます。\n\n基準となる組織構造が市町村を調整の中心に置くのは、**統制範囲**の考え方によるものです。復旧期の支援は、仮設住宅や在宅など地域ごとに細かく、長く続きます。保健所が管内全域の応援チームを直接束ね続けると、調整が保健所に集中し、一つの組織が無理なく調整できる範囲を超えてしまいます。地域の状況をよく知る市町村が身近な調整を担い、保健所は市町村を支える役割に移ることで、それぞれの調整の範囲が適切に保たれます。\n\nただし、移行は一度に行うものではありません。B村では、他県からの中長期の応援が入るまでの間、県の保健師が村に常駐して統括保健師を支え、その後、支援を保健所に移しました。常駐の終了後も、保健所は村の求めに応じて、仮設住宅の健康調査などを支援しています。市町村の体制が回復する状況を見ながら、段階的に調整の中心を移していくことが大切です。",
+    },
+  });
+  // 比較画面 → compareStudy のキー / DOM の id 接頭辞
+  const COMPARE_SIDE = { [PHASE.ACUTE_COMPARE]: "acute", [PHASE.RECOVERY_COMPARE]: "recovery" };
+  const COMPARE_PREFIX = { [PHASE.ACUTE_COMPARE]: "cmpA", [PHASE.RECOVERY_COMPARE]: "cmpR" };
+  function freshCompareStudyFor(phase) {
+    const c = COMPARE_CASES[phase];
+    return { caseId: c.caseId, caseVersion: c.caseVersion, principle: null, principleBeforeExplanation: null,
+             explanationOpened: false, explanationFirstOpenedAt: null };
+  }
+  function freshCompareStudy() {
+    return { acute: freshCompareStudyFor(PHASE.ACUTE_COMPARE), recovery: freshCompareStudyFor(PHASE.RECOVERY_COMPARE) };
+  }
+  // 保存・インポート由来の値を検証し、欠けている側は初期値で補う（保存済みの caseId は上書きしない）
+  function normalizeCompareStudy(obj) {
+    const out = freshCompareStudy();
+    for (const [phase, side] of Object.entries(COMPARE_SIDE)) {
+      const v = obj && obj[side];
+      if (v && typeof v === "object" && typeof v.caseId === "string") {
+        out[side] = { ...freshCompareStudyFor(Number(phase)), ...v, explanationOpened: v.explanationOpened === true };
+      }
+    }
+    return out;
+  }
+
   // ================================================================
   // RECOVERY_RECORD_CONTENT — 対応検証記録フェーズのデータ定義（復旧期）
   // ================================================================
@@ -573,6 +637,7 @@
     transitionCompare: { answers: { q6: "" } },  // [NEW] 急性期・復旧期構造比較
     recoveryCompare:   { answers: { q6: "", q7: "", q7sel: "" } },  // 内部キーは q6/q7 を保持
     recoveryRecord:    { answers: { q9: "" } },
+    compareStudy:      freshCompareStudy(),  // [NEW stage3] 比較・分析（注目箇所・原則選択・解説）
   };
 
   function savePhaseData(key) {
@@ -745,6 +810,8 @@
 
   function _logPhaseTransition(from, to, prevStartTime) {
     const _r = _restoringFromStorage ? { restored: true } : {};
+    // [NEW stage3] 比較画面からの遷移（進行・戻る・終了・ヘッダー移動）
+    if (from !== to && COMPARE_CASES[from] && !_restoringFromStorage) logCompareCaseExit(from);
     logOp("PHASE_EXIT",     { from, fromName: getPhaseName(from), to, toName: getPhaseName(to), ..._r });
     logOp("PHASE_DURATION", { phase: from, phaseName: getPhaseName(from), ms: Date.now() - prevStartTime, ..._r });
     _logSegmentTransition(from, to);
@@ -977,6 +1044,10 @@
   }
 
   function clearLocalStorage() {
+    // [FIX stage3] debounce 待ちの保存を取り消す（残っていると、離脱時の確定保存〔pagehide〕が
+    // 消去直後のデータを書き戻し、__icsClearStorage() による被験者切り替えが無効になる）
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = null;
     localStorage.removeItem(STORAGE_KEY);
   }
 
@@ -1328,19 +1399,27 @@
       // 採点を実行（表示はしない。結果は state.acuteScore に入る）
       gradeAcutePhase();
 
+      // [NEW stage3] 比較学習：表示元マップ（修正後があればそれを使う。データは書き換えない）と滞在状態
+      const _cmpCaseA = COMPARE_CASES[PHASE.ACUTE_COMPARE];
+      const _cmpSrcA  = compareLearnerSource(PHASE.ACUTE_COMPARE);
+      if (prevPhase !== p) _cmpVisit = { phase: p, learnerFocusMissing: null, actualMapUnavailable: false };
+
       // 描画はグリッドレイアウト確定後に実行
       requestAnimationFrame(() => {
         // 左カラム：学習者の基準マップを描画
         renderReadOnlyMap(
-          phaseData.acute.nodes,
-          phaseData.acute.edges,
+          _cmpSrcA.nodes,
+          _cmpSrcA.edges,
           $("canvas-ideal"),
           $("svgLayer-ideal"),
           $("canvasWrap-ideal"),
           $("canvasStat-ideal"),
           "-ideal",
           null, true,
-          () => clearHighlightRO($("canvas-actual"), $("svgLayer-actual"))
+          () => clearHighlightRO($("canvas-actual"), $("svgLayer-actual")),
+          { disableDblClickHighlight: true,
+            onRendered: () => applyCompareFocus(_cmpCaseA, "learner", _cmpSrcA.nodes, _cmpSrcA.edges,
+                                                $("canvas-ideal"), $("svgLayer-ideal")) }
         );
 
         // 右カラム：急性期実際マップを描画
@@ -1355,11 +1434,15 @@
             window.actualMapAcute.edges,
             actualCanvas, actualSvg, actualWrap, actualStat, "-actual",
             null, true,
-            () => clearHighlightRO($("canvas-ideal"), $("svgLayer-ideal"))
+            () => clearHighlightRO($("canvas-ideal"), $("svgLayer-ideal")),
+            { disableDblClickHighlight: true,
+              onRendered: () => applyCompareFocus(_cmpCaseA, "actual", window.actualMapAcute.nodes,
+                                                  window.actualMapAcute.edges, actualCanvas, actualSvg) }
           );
         } else if (mapLoadStatus.actualAcute === "error") {
           actualCanvas.innerHTML =
             '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ の読み込みに失敗しました</div>';
+          markCompareActualUnavailable(PHASE.ACUTE_COMPARE); // [NEW stage3]
         } else {
           actualCanvas.innerHTML =
             '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
@@ -1385,7 +1468,8 @@
         if (radio) radio.checked = true;
       }
       _logPhaseTransition(prevPhase, p, prevStartTime);
-      showToast("ノードをダブルクリックすると接続関係をハイライトできます", 3500);
+      // [CHANGED stage3] ダブルクリック強調は比較画面では使わないため案内トーストは出さない
+      enterCompareCase(p, prevPhase, _cmpSrcA.sourceMap);
       return;
     }
 
@@ -1500,9 +1584,14 @@
       if (!validatePhase6Leaving(p, prevPhase)) return;
       BENEFICIARY_LABELS = PHASE6_BENEFICIARY_LABELS;
 
+      // [NEW stage3] 比較学習の事例と滞在状態
+      const _cmpCaseR = COMPARE_CASES[PHASE.RECOVERY_COMPARE];
+      const _cmpSrcR  = compareLearnerSource(PHASE.RECOVERY_COMPARE);
+      if (prevPhase !== p) _cmpVisit = { phase: p, learnerFocusMissing: null, actualMapUnavailable: false };
+
       requestAnimationFrame(() => {
         // 左カラム：学習者の復旧期マップ（修正後があればそちらを優先。§2）
-        const _rcSrc = phaseData.recoveryRevised ?? phaseData.p6;
+        const _rcSrc = _cmpSrcR;
         renderReadOnlyMap(
           _rcSrc.nodes,
           _rcSrc.edges,
@@ -1512,7 +1601,10 @@
           $("canvasStat-rcIdeal"),
           "-rcIdeal",
           null, true,
-          () => clearHighlightRO($("canvas-rcActual"), $("svgLayer-rcActual"))
+          () => clearHighlightRO($("canvas-rcActual"), $("svgLayer-rcActual")),
+          { disableDblClickHighlight: true,
+            onRendered: () => applyCompareFocus(_cmpCaseR, "learner", _rcSrc.nodes, _rcSrc.edges,
+                                                $("canvas-rcIdeal"), $("svgLayer-rcIdeal")) }
         );
 
         // 右カラム：復旧期実際マップ
@@ -1527,11 +1619,15 @@
             $("canvasStat-rcActual"),
             "-rcActual",
             null, true,
-            () => clearHighlightRO($("canvas-rcIdeal"), $("svgLayer-rcIdeal"))
+            () => clearHighlightRO($("canvas-rcIdeal"), $("svgLayer-rcIdeal")),
+            { disableDblClickHighlight: true,
+              onRendered: () => applyCompareFocus(_cmpCaseR, "actual", window.actualMapRecovery.nodes,
+                                                  window.actualMapRecovery.edges, rcActualCanvas, $("svgLayer-rcActual")) }
           );
         } else if (mapLoadStatus.actualRecovery === "error") {
           if (rcActualCanvas) rcActualCanvas.innerHTML =
             '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際マップの読み込みに失敗しました</div>';
+          markCompareActualUnavailable(PHASE.RECOVERY_COMPARE); // [NEW stage3]
         } else {
           if (rcActualCanvas) rcActualCanvas.innerHTML =
             '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
@@ -1557,7 +1653,8 @@
         if (radio) radio.checked = true;
       }
       _logPhaseTransition(prevPhase, p, prevStartTime);
-      showToast("ノードをダブルクリックすると接続関係をハイライトできます", 3500);
+      // [CHANGED stage3] ダブルクリック強調は比較画面では使わないため案内トーストは出さない
+      enterCompareCase(p, prevPhase, _cmpSrcR.sourceMap);
       return;
     }
 
@@ -1728,16 +1825,15 @@
   }
 
   // 終了操作。btnToRecoveryRecord（RECOVERY_COMPARE）から呼ぶ。
-  // unanswered: [{ questionId, label }]（未回答の設問。QUESTION_UNANSWERED として終了確認と統合する）
-  function endSession(unanswered = []) {
+  // incomplete: { gate, text, detail } | null（未完了の理由。INCOMPLETE_ADVANCE として終了確認と統合する）
+  // [CHANGED stage3] 旧設問の QUESTION_UNANSWERED から、比較学習の COMPARE_INCOMPLETE に置き換え
+  function endSession(incomplete = null) {
     if (state.sessionEnded) return;
     const prevPhase = state.phase;
     const endMsg = "学習を終了しますか？終了後は回答やマップを変更できなくなります。";
-    if (unanswered.length > 0) {
-      const labels = [...new Set(unanswered.map(u => u.label))];
-      if (!confirmIncompleteAdvance("QUESTION_UNANSWERED", prevPhase, PHASE.SESSION_END,
-            `未回答：${labels.join("、")}。${endMsg}`,
-            { questionIds: unanswered.map(u => u.questionId) })) return;
+    if (incomplete) {
+      if (!confirmIncompleteAdvance(incomplete.gate, prevPhase, PHASE.SESSION_END,
+            `${incomplete.text}。${endMsg}`, incomplete.detail)) return;
     } else if (!confirm(endMsg)) {
       return;
     }
@@ -2840,6 +2936,7 @@
       sessionEndedAt: state.sessionEndedAt,
       atSessionEnd:   state.sessionEndSnapshot,
       segmentTimes:   buildSegmentTimes(), // [NEW flow-v4 段階2] 区間ごとの累積滞在時間
+      compareStudy:   phaseData.compareStudy, // [NEW stage3] 比較・分析の原則選択と解説の閲覧
     };
   }
 
@@ -3062,6 +3159,8 @@
 
           if (hasConflict) showToast("読み込んだデータに矛盾する矢印の組み合わせが含まれています", 3000);
           if (state.sessionEnded) applySessionLock(); else releaseSessionLock(); // [NEW flow-v4]
+          // [NEW stage3] 比較学習の記録（旧形式には無いため初期値で補う。旧設問の回答は各分岐で従来どおり復元）
+          phaseData.compareStudy = normalizeCompareStudy(obj.compareStudy);
           state.sessionId      = generateSessionId();
           state.operationLog   = importedLogs;
           state.phaseStartTime = Date.now();
@@ -3169,16 +3268,16 @@
       logOp("RESET", { target: "transitionCompareAnswers" });
       return;
     }
-    // 復旧期比較・分析：問6・問7 の回答をクリア
-    if (state.phase === PHASE.RECOVERY_COMPARE) {
-      if (!confirm("復旧期比較・分析の回答をリセットしますか？")) return;
-      phaseData.recoveryCompare.answers = { q6: "", q7: "", q7sel: "" };
-      const q6el = $("rcQ6Answer");
-      const q7el = $("rcQ7Answer");
-      if (q6el) { q6el.value = ""; const cc = $("rcQ6CharCount"); if (cc) cc.textContent = "0"; }
-      if (q7el) { q7el.value = ""; const cc = $("rcQ7CharCount"); if (cc) cc.textContent = "0"; }
-      document.querySelectorAll('input[name="rcQ7principle"]').forEach(r => { r.checked = false; });
-      logOp("RESET", { target: "recoveryCompareAnswers" });
+    // [CHANGED stage3] 比較・分析（急性期・復旧期）：その画面の compareStudy だけを初期値に戻す。
+    // 構築済みのマップや他の画面のデータ、旧設問の回答は消さない。
+    // （急性期比較は従来、専用分岐がなく下の汎用初期化に落ちて表示中マップを消していた）
+    if (state.phase === PHASE.ACUTE_COMPARE || state.phase === PHASE.RECOVERY_COMPARE) {
+      if (!confirm("比較・分析で選んだ原則と解説の表示をリセットしますか？（マップは消えません）")) return;
+      const side = COMPARE_SIDE[state.phase];
+      phaseData.compareStudy[side] = freshCompareStudyFor(state.phase);
+      logOp("RESET", { target: `compareStudy.${side}` });
+      renderComparePanel(state.phase);
+      saveToLocalStorage();
       return;
     }
     // 復旧期対応検証記録：問8 の回答をクリア
@@ -6408,6 +6507,7 @@
 
     const g = document.createElementNS("http://www.w3.org/2000/svg","g");
     g.dataset.from = e.from; g.dataset.to = e.to;
+    g.dataset.eid = e.id ?? `${e.from}|${e.to}|${e.label}`; // [NEW stage3] 比較画面の強調照合用
 
     const path = document.createElementNS("http://www.w3.org/2000/svg","path");
     path.setAttribute("d", pathD);
@@ -6451,7 +6551,9 @@
   function renderReadOnlyMap(nodes, edges,
       canvasEl, svgEl, canvasWrapEl, statEl, markerSuffix,
       onNodeClick = null, fitToWrap = false,
-      onNodeDblClick = null) {
+      onNodeDblClick = null, opts = {}) {
+    // [NEW stage3] opts.onRendered：エッジ描画とフィット表示の後に呼ぶ。
+    //              opts.disableDblClickHighlight：ダブルクリック強調と背景クリック解除を登録しない。
 
     // 前回の fitToWrap transform が残っている場合に備えてリセット
     canvasEl.style.transform = "";
@@ -6477,7 +6579,7 @@
         e.stopPropagation();
         if (onNodeClick) onNodeClick(n.id, n.label);
       });
-      div.addEventListener("dblclick", e => {
+      if (!opts.disableDblClickHighlight) div.addEventListener("dblclick", e => {
         e.stopPropagation();
         clearTimeout(_clickTimer);
         if (roHighlightId === n.id) {
@@ -6497,7 +6599,7 @@
     }
 
     // 背景クリックでハイライト解除
-    canvasWrapEl.addEventListener("click", () => {
+    if (!opts.disableDblClickHighlight) canvasWrapEl.addEventListener("click", () => {
       if (roHighlightId !== null) {
         roHighlightId = null;
         clearHighlightRO(canvasEl, svgEl);
@@ -6547,6 +6649,7 @@
         svgEl.style.transform          = transform;
         svgEl.style.transformOrigin    = transformOrigin;
       }
+      if (typeof opts.onRendered === "function") opts.onRendered(); // [NEW stage3]
     });
   }
 
@@ -6763,6 +6866,225 @@
     "Communications":   "コミュニケーション",
     "該当なし":          "3原則のいずれにも該当しない",
   };
+
+  // ================================================================
+  // [NEW stage3] 比較・分析フェーズ：注目箇所の自動強調・原則選択・共通解説
+  // ================================================================
+  const COMPARE_PRINCIPLES = ["Unity of Command", "Span of Control", "Communications"]; // 「該当なし」は置かない
+  const COMPARE_REASON_JA = {
+    principle_unselected: "ICS原則が選ばれていません",
+    explanation_unopened: "解説をまだ読んでいません",
+  };
+  // 比較画面の滞在ごとの状態（COMPARE_CASE_EXIT に載せる）
+  let _cmpVisit = null; // { phase, learnerFocusMissing, actualMapUnavailable }
+
+  function compareStudyOf(phase) {
+    const side = COMPARE_SIDE[phase];
+    if (!phaseData.compareStudy) phaseData.compareStudy = freshCompareStudy();
+    if (!phaseData.compareStudy[side]) phaseData.compareStudy[side] = freshCompareStudyFor(phase);
+    return phaseData.compareStudy[side];
+  }
+
+  // 入場時：未初期化なら初期化。保存済みの caseId / caseVersion が現在の定義と違う場合は保持して記録のみ。
+  function ensureCompareStudy(phase) {
+    const st = compareStudyOf(phase);
+    const c = COMPARE_CASES[phase];
+    if (st.caseId !== c.caseId || st.caseVersion !== c.caseVersion) {
+      logOp("COMPARE_CASE_VERSION_MISMATCH", {
+        phase, savedCaseId: st.caseId, savedCaseVersion: st.caseVersion,
+        currentCaseId: c.caseId, currentCaseVersion: c.caseVersion,
+      });
+    }
+    return st;
+  }
+
+  function compareIncompleteReasons(phase) {
+    const st = compareStudyOf(phase);
+    const reasons = [];
+    if (!st.principle) reasons.push("principle_unselected");
+    if (!st.explanationOpened) reasons.push("explanation_unopened");
+    return reasons;
+  }
+  const compareReasonText = reasons => reasons.map(r => COMPARE_REASON_JA[r] || r).join("、");
+
+  // 解説の整形：esc() でエスケープ → **…** を <strong> に → 改行を <br>
+  function formatCompareExplanation(text) {
+    return esc(text || "")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\n/g, "<br>");
+  }
+
+  function renderComparePanel(phase) {
+    const px = COMPARE_PREFIX[phase], c = COMPARE_CASES[phase];
+    if (!px || !c) return;
+    const st = compareStudyOf(phase);
+    const ft = $(`${px}-focusText`);
+    if (ft) ft.textContent = c.focusText;
+    document.querySelectorAll(`input[name="${px}-principle"]`).forEach(r => { r.checked = r.value === st.principle; });
+    const btn = $(`${px}-btnExplain`);
+    if (btn) btn.disabled = !st.principle;
+    const ex = $(`${px}-explanation`), ph = $(`${px}-explanationPlaceholder`);
+    if (st.explanationOpened) {
+      if (ex) { ex.innerHTML = formatCompareExplanation(c.explanation); ex.hidden = false; }
+      if (ph) ph.hidden = true;
+    } else {
+      if (ex) { ex.innerHTML = ""; ex.hidden = true; }
+      if (ph) ph.hidden = false;
+    }
+  }
+
+  // 学習者側の表示元マップ（データは書き換えない）
+  function compareLearnerSource(phase) {
+    if (phase === PHASE.ACUTE_COMPARE) {
+      const rev = phaseData.acuteRevised;
+      if (rev && Array.isArray(rev.nodes) && rev.nodes.length > 0) {
+        return { nodes: rev.nodes, edges: rev.edges || [], sourceMap: "acuteRevised" };
+      }
+      return { nodes: phaseData.acute.nodes, edges: phaseData.acute.edges, sourceMap: "acute" };
+    }
+    if (phaseData.recoveryRevised) {
+      return { nodes: phaseData.recoveryRevised.nodes, edges: phaseData.recoveryRevised.edges, sourceMap: "recoveryRevised" };
+    }
+    return { nodes: phaseData.p6.nodes, edges: phaseData.p6.edges, sourceMap: "p6" };
+  }
+
+  // 注目箇所の強調（クラスの付け外しのみ。ノード・エッジのデータは変更しない）
+  function applyCompareFocus(caseDef, side, nodes, edges, canvasEl, svgEl) {
+    if (!caseDef || !canvasEl || !svgEl) return null;
+    canvasEl.querySelectorAll(".node").forEach(el => el.classList.remove("cmp-focus", "cmp-dim"));
+    svgEl.querySelectorAll("g[data-from]").forEach(g => g.classList.remove("cmp-focus", "cmp-secondary", "cmp-dim"));
+
+    // 1. ノードの照合（1件だけ一致したものだけを強調。2件以上は ambiguous）
+    const labelToId = {};
+    const nodesMatched = [], nodesMissing = [], nodesAmbiguous = [];
+    for (const label of caseDef.focusNodes) {
+      const hits = (nodes || []).filter(n => n.label === label);
+      if (hits.length === 1) { labelToId[label] = hits[0].id; nodesMatched.push(label); }
+      else if (hits.length === 0) nodesMissing.push(label);
+      else nodesAmbiguous.push(label);
+    }
+    const focusNodeIds = new Set(Object.values(labelToId));
+
+    // 2. エッジの照合（両端が一意・ラベル一致・向き一致。undirected は逆向きも可）
+    const defs = side === "learner" ? caseDef.learnerEdges : caseDef.actualEdges;
+    const edgeName = d => `${d.from}${d.undirected ? "—" : "→"}${d.to}（${d.label}）`;
+    const edgesMatched = [], edgesMissing = [];
+    const roleByEid = new Map();
+    for (const d of defs) {
+      const a = labelToId[d.from], b = labelToId[d.to];
+      const hits = (a && b) ? (edges || []).filter(e => e.label === d.label &&
+        ((e.from === a && e.to === b) || (d.undirected && e.from === b && e.to === a))) : [];
+      if (hits.length === 0) { edgesMissing.push(edgeName(d)); continue; }
+      edgesMatched.push(edgeName(d));
+      const role = d.role === "secondary" ? "secondary" : "focus";
+      hits.forEach(e => {
+        const eid = e.id ?? `${e.from}|${e.to}|${e.label}`;
+        if (roleByEid.get(eid) !== "focus") roleByEid.set(eid, role);
+      });
+    }
+
+    // 3. 強調しなかったノード・エッジは薄表示
+    canvasEl.querySelectorAll(".node").forEach(el =>
+      el.classList.add(focusNodeIds.has(el.dataset.id) ? "cmp-focus" : "cmp-dim"));
+    svgEl.querySelectorAll("g[data-from]").forEach(g => {
+      const role = roleByEid.get(g.dataset.eid);
+      g.classList.add(role === "focus" ? "cmp-focus" : role === "secondary" ? "cmp-secondary" : "cmp-dim");
+    });
+
+    // 4. 学習者側の欠落の案内
+    const phase = Number(Object.keys(COMPARE_CASES).find(k => COMPARE_CASES[k] === caseDef));
+    if (side === "learner") {
+      const note = $(`${COMPARE_PREFIX[phase]}-missingNote`);
+      if (note) {
+        note.textContent = nodesMissing.length > 0
+          ? "ご自身のマップには、注目する組織や関係の一部が配置されていません。実際の組織構造と解説を見ながら考えてください。"
+          : "";
+        note.hidden = nodesMissing.length === 0;
+      }
+      if (_cmpVisit && _cmpVisit.phase === phase) {
+        _cmpVisit.learnerFocusMissing = { nodes: nodesMissing, edges: edgesMissing, ambiguous: nodesAmbiguous };
+      }
+    }
+
+    // 5. 記録
+    const detail = { caseId: caseDef.caseId, side, nodesMatched, nodesMissing, nodesAmbiguous, edgesMatched, edgesMissing };
+    logOp("COMPARE_FOCUS_SHOWN", detail);
+    return detail;
+  }
+
+  function markCompareActualUnavailable(phase) {
+    if (_cmpVisit && _cmpVisit.phase === phase) {
+      if (_cmpVisit.actualMapUnavailable) return;
+      _cmpVisit.actualMapUnavailable = true;
+    }
+    logOp("COMPARE_ACTUAL_MAP_UNAVAILABLE", { phase, caseId: COMPARE_CASES[phase].caseId });
+  }
+
+  // 比較画面からの遷移ごと（_logPhaseTransition から呼ぶ）
+  function logCompareCaseExit(phase) {
+    const st = compareStudyOf(phase);
+    const v = (_cmpVisit && _cmpVisit.phase === phase) ? _cmpVisit : null;
+    logOp("COMPARE_CASE_EXIT", {
+      caseId: COMPARE_CASES[phase].caseId,
+      principle: st.principle,
+      principleBeforeExplanation: st.principleBeforeExplanation,
+      explanationOpened: st.explanationOpened,
+      incompleteReasons: compareIncompleteReasons(phase),
+      learnerFocusMissing: v ? v.learnerFocusMissing : null,
+      actualMapUnavailable: v ? v.actualMapUnavailable : false,
+    });
+    if (v) _cmpVisit = null;
+  }
+
+  // 比較画面の入場処理（入場ブロックの _logPhaseTransition の後に呼ぶ）
+  function enterCompareCase(phase, prevPhase, sourceMap) {
+    const c = COMPARE_CASES[phase];
+    if (prevPhase !== phase) {
+      ensureCompareStudy(phase);
+      logOp("COMPARE_CASE_ENTER", { phase, caseId: c.caseId, caseVersion: c.caseVersion, sourceMap });
+    }
+    renderComparePanel(phase);
+  }
+
+  // ラジオ（原則）と「解説を確認する」の配線（wireEvents から1回だけ呼ぶ）
+  function wireCompareStudy() {
+    for (const [phaseStr, px] of Object.entries(COMPARE_PREFIX)) {
+      const phase = Number(phaseStr);
+      const box = $(`${px}-radios`);
+      if (box) {
+        box.innerHTML = COMPARE_PRINCIPLES.map(v =>
+          `<label class="cmp-radio-item"><input type="radio" name="${px}-principle" value="${esc(v)}">` +
+          `<span>${esc(ICS_PRINCIPLE_JA[v])}<span class="cmp-radio-sub">${esc(v)}</span></span></label>`).join("");
+        box.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", () => {
+          if (!r.checked) return;
+          const st = compareStudyOf(phase);
+          const from = st.principle;
+          if (from === r.value) return;
+          st.principle = r.value;
+          logOp("COMPARE_PRINCIPLE_CHANGE", {
+            caseId: COMPARE_CASES[phase].caseId, from, to: r.value, explanationOpened: st.explanationOpened,
+          });
+          debouncedSave();
+          const btn = $(`${px}-btnExplain`);
+          if (btn) btn.disabled = false;
+        }));
+      }
+      $(`${px}-btnExplain`)?.addEventListener("click", () => {
+        const st = compareStudyOf(phase);
+        if (!st.principle) return;
+        if (!st.explanationOpened) {
+          st.explanationOpened = true;
+          st.principleBeforeExplanation = st.principle;
+          st.explanationFirstOpenedAt = new Date().toISOString();
+          logOp("COMPARE_EXPLANATION_OPEN", {
+            caseId: COMPARE_CASES[phase].caseId, principleBeforeExplanation: st.principleBeforeExplanation,
+          });
+        }
+        renderComparePanel(phase);
+        saveToLocalStorage();
+      });
+    }
+  }
 
   function renderSelectedPrinciple(elementId, value, fallbackMsg) {
     const el = $(elementId);
@@ -7289,6 +7611,7 @@
   // ================================================================
   function wireEvents() {
     $("btnExport")?.addEventListener("click", exportJSON);
+    wireCompareStudy(); // [NEW stage3]
     $("btnImport")?.addEventListener("click", importJSON);
     $("btnReset")?.addEventListener("click", resetAll);
 
@@ -7530,17 +7853,12 @@
       const ans = phaseData.acute.answers;
       // [CHANGED flow-v4] ACUTE_RECORD 無効時は RECOVERY_PREP へ直結
       const toPhase = FEATURES.ENABLE_ACUTE_RECORD_PHASE ? PHASE.ACUTE_RECORD : PHASE.RECOVERY_PREP;
-      // [CHANGED flow-v4 段階2] 未回答は confirm 1回（QUESTION_UNANSWERED）
-      const unanswered = [
-        !ans.p3q1    && { questionId: "acute.p3q1",    label: "問1" },
-        !ans.p3q2sel && { questionId: "acute.p3q2sel", label: "問2" },
-        !ans.p3q2    && { questionId: "acute.p3q2",    label: "問2" },
-      ].filter(Boolean);
-      if (unanswered.length > 0) {
-        const labels = [...new Set(unanswered.map(u => u.label))];
-        if (!confirmIncompleteAdvance("QUESTION_UNANSWERED", state.phase, toPhase,
-              `未回答：${labels.join("、")}。このまま進みますか？`,
-              { questionIds: unanswered.map(u => u.questionId) })) return;
+      // [CHANGED stage3] 比較学習の未完了（原則未選択・解説未読）は confirm 1回（COMPARE_INCOMPLETE）
+      const reasons = compareIncompleteReasons(PHASE.ACUTE_COMPARE);
+      if (reasons.length > 0) {
+        if (!confirmIncompleteAdvance("COMPARE_INCOMPLETE", state.phase, toPhase,
+              `${compareReasonText(reasons)}。このまま進みますか？`,
+              { reasons, caseId: COMPARE_CASES[PHASE.ACUTE_COMPARE].caseId })) return;
       }
       try {
         switchPhase(toPhase);
@@ -7669,20 +7987,17 @@
     });
 
     $("btnToRecoveryRecord")?.addEventListener("click", () => {
-      const { q6, q7, q7sel } = phaseData.recoveryCompare.answers;
-      // [CHANGED flow-v4 段階2] 未回答は停止せず confirm 1回（QUESTION_UNANSWERED）
-      const unanswered = [
-        !q6    && { questionId: "recoveryCompare.q6",    label: "問3" },
-        !q7sel && { questionId: "recoveryCompare.q7sel", label: "問4" },
-        !q7    && { questionId: "recoveryCompare.q7",    label: "問4" },
-      ].filter(Boolean);
-      // [CHANGED flow-v4] RECOVERY_RECORD 無効時は学習終了操作（終了確認と未回答確認を1回に統合）
-      if (!FEATURES.ENABLE_RECOVERY_RECORD_PHASE) { endSession(unanswered); return; }
-      if (unanswered.length > 0) {
-        const labels = [...new Set(unanswered.map(u => u.label))];
-        if (!confirmIncompleteAdvance("QUESTION_UNANSWERED", state.phase, PHASE.RECOVERY_RECORD,
-              `未回答：${labels.join("、")}。このまま進みますか？`,
-              { questionIds: unanswered.map(u => u.questionId) })) return;
+      // [CHANGED stage3] 比較学習の未完了（原則未選択・解説未読）は confirm 1回（COMPARE_INCOMPLETE）
+      const reasons = compareIncompleteReasons(PHASE.RECOVERY_COMPARE);
+      const incomplete = reasons.length > 0
+        ? { gate: "COMPARE_INCOMPLETE", text: compareReasonText(reasons),
+            detail: { reasons, caseId: COMPARE_CASES[PHASE.RECOVERY_COMPARE].caseId } }
+        : null;
+      // [CHANGED flow-v4] RECOVERY_RECORD 無効時は学習終了操作（終了確認と未完了確認を1回に統合）
+      if (!FEATURES.ENABLE_RECOVERY_RECORD_PHASE) { endSession(incomplete); return; }
+      if (incomplete) {
+        if (!confirmIncompleteAdvance(incomplete.gate, state.phase, PHASE.RECOVERY_RECORD,
+              `${incomplete.text}。このまま進みますか？`, incomplete.detail)) return;
       }
       try {
         switchPhase(PHASE.RECOVERY_RECORD);
@@ -8967,6 +9282,8 @@
         restoreSegTimer(saved.currentPhase, state.sessionEnded);
         Object.assign(phaseData, saved.phaseData);
         if (saved.phase5Data) Object.assign(window.phase5Data, saved.phase5Data);
+        // [NEW stage3] compareStudy は phaseData に含めて保存している。欠けていれば初期値で補う。
+        phaseData.compareStudy = normalizeCompareStudy(phaseData.compareStudy);
         // [NEW flow-v4 段階2補修] ⑨の状態変数の復元（phaseData.p6・phase5Data の復元後、switchPhase の前）。
         // (a) 保存済みの p6State をそのまま戻す。(b) p6State の無い旧データは importJSON と同じ規則で導出する。
         // シグネチャは getRemovalSignature() の値をそのまま保存・比較する（独自に組み立てない）。
