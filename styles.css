@@ -1945,3 +1945,50 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
 @media (max-width: 1599px) {
   .logo-name { display: none; }
 }
+
+/* ================================================================
+   [NEW 補修] 比較画面の下部パネル
+   - 画面は「マップ領域（残り全部）＋下部パネル（STEP 2 の内容で決まる高さ）」の2段
+   - STEP 1・STEP 3 は size containment で行の高さに寄与させず、列の中でスクロールする
+     （解説の表示・非表示でパネルとマップ領域の高さが変わらない）
+   - 進行ボタンはパネル右下に重ね、STEP 3 の列はボタンの分だけ下を空ける
+   ================================================================ */
+#phase-2, #phase-recoveryCompare { grid-template-rows: minmax(0, 1fr) auto; }
+.cmp-panel { position: relative; gap: 0; padding: 10px 14px; }
+.cmp-study {
+  height: auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 12px;
+  align-items: stretch;
+}
+.cmp-step { padding: 10px 12px; gap: 8px; }
+.cmp-step-focus, .cmp-step-explain { contain: size; min-height: 0; overflow-y: auto; }
+.cmp-step-choice { overflow: visible; }
+.cmp-question { font-size: 15px; line-height: 1.4; }
+/* 選択肢：1行のカード［丸印］［日本語名（太字）］［英語名（小さく・薄く）］ */
+.cmp-radio-group { gap: 8px; }
+.cmp-radio-item {
+  height: 44px; box-sizing: border-box; padding: 0 12px; gap: 10px;
+  justify-content: flex-start; min-width: 0;
+}
+.cmp-radio-ja { font-size: 14px; font-weight: 800; white-space: nowrap; }
+.cmp-radio-en {
+  font-size: 11px; font-weight: 400; color: var(--text-dim); margin-left: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.cmp-explain-btn-row { margin-top: 0; }
+/* 進行ボタン：パネル右下。STEP 3 の本文と重ならないよう、STEP 3 の列は下を空ける */
+.cmp-panel > .compare-qa-btn-row { position: absolute; right: 14px; bottom: 10px; margin: 0; gap: 8px; }
+.cmp-step-explain { margin-bottom: 46px; }
+/* STEP 3：はみ出しているときだけ下端に「↓ 続きがあります」 */
+.cmp-more-hint {
+  display: none; position: sticky; bottom: -10px;
+  margin: 4px -12px -10px; padding: 18px 12px 6px;
+  text-align: center; font-size: 11px; color: var(--text-dim);
+  background: linear-gradient(to bottom, rgba(19, 29, 48, 0), var(--card) 65%);
+  pointer-events: none;
+}
+.cmp-step-explain.has-more .cmp-more-hint { display: block; }
+.cmp-radio-item input[type="radio"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; padding: 0; }
+.cmp-radio-ja { flex: 0 0 auto; }
+.cmp-radio-en { flex: 0 1 auto; }

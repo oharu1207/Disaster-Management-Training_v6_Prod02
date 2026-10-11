@@ -1440,54 +1440,11 @@
       gradeAcutePhase();
 
       // [NEW stage3] 比較学習：表示元マップ（修正後があればそれを使う。データは書き換えない）と滞在状態
-      const _cmpCaseA = COMPARE_CASES[PHASE.ACUTE_COMPARE];
       const _cmpSrcA  = compareLearnerSource(PHASE.ACUTE_COMPARE);
       if (prevPhase !== p) _cmpVisit = { phase: p, learnerFocusMissing: null, actualMapUnavailable: false };
 
-      // 描画はグリッドレイアウト確定後に実行
-      requestAnimationFrame(() => {
-        // 左カラム：学習者の基準マップを描画
-        renderReadOnlyMap(
-          _cmpSrcA.nodes,
-          _cmpSrcA.edges,
-          $("canvas-ideal"),
-          $("svgLayer-ideal"),
-          $("canvasWrap-ideal"),
-          $("canvasStat-ideal"),
-          "-ideal",
-          null, true,
-          () => clearHighlightRO($("canvas-actual"), $("svgLayer-actual")),
-          { disableDblClickHighlight: true,
-            onRendered: () => applyCompareFocus(_cmpCaseA, "learner", _cmpSrcA.nodes, _cmpSrcA.edges,
-                                                $("canvas-ideal"), $("svgLayer-ideal")) }
-        );
-
-        // 右カラム：急性期実際マップを描画
-        const actualCanvas = $("canvas-actual");
-        const actualSvg    = $("svgLayer-actual");
-        const actualWrap   = $("canvasWrap-actual");
-        const actualStat   = $("canvasStat-actual");
-
-        if (mapLoadStatus.actualAcute === "ready") {
-          renderReadOnlyMap(
-            window.actualMapAcute.nodes,
-            window.actualMapAcute.edges,
-            actualCanvas, actualSvg, actualWrap, actualStat, "-actual",
-            null, true,
-            () => clearHighlightRO($("canvas-ideal"), $("svgLayer-ideal")),
-            { disableDblClickHighlight: true,
-              onRendered: () => applyCompareFocus(_cmpCaseA, "actual", window.actualMapAcute.nodes,
-                                                  window.actualMapAcute.edges, actualCanvas, actualSvg) }
-          );
-        } else if (mapLoadStatus.actualAcute === "error") {
-          actualCanvas.innerHTML =
-            '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際の組織構造マップの読み込みに失敗しました</div>';
-          markCompareActualUnavailable(PHASE.ACUTE_COMPARE); // [NEW stage3]
-        } else {
-          actualCanvas.innerHTML =
-            '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
-        }
-      });
+      // 描画はグリッドレイアウト確定後に実行（両カラムの描画と強調は renderCompareColumns に集約）
+      requestAnimationFrame(() => renderCompareColumns(PHASE.ACUTE_COMPARE));
 
       // 回答の復元
       const ans  = phaseData.acute.answers;
@@ -1625,54 +1582,11 @@
       BENEFICIARY_LABELS = PHASE6_BENEFICIARY_LABELS;
 
       // [NEW stage3] 比較学習の事例と滞在状態
-      const _cmpCaseR = COMPARE_CASES[PHASE.RECOVERY_COMPARE];
       const _cmpSrcR  = compareLearnerSource(PHASE.RECOVERY_COMPARE);
       if (prevPhase !== p) _cmpVisit = { phase: p, learnerFocusMissing: null, actualMapUnavailable: false };
 
-      requestAnimationFrame(() => {
-        // 左カラム：学習者の復旧期マップ（修正後があればそちらを優先。§2）
-        const _rcSrc = _cmpSrcR;
-        renderReadOnlyMap(
-          _rcSrc.nodes,
-          _rcSrc.edges,
-          $("canvas-rcIdeal"),
-          $("svgLayer-rcIdeal"),
-          $("canvasWrap-rcIdeal"),
-          $("canvasStat-rcIdeal"),
-          "-rcIdeal",
-          null, true,
-          () => clearHighlightRO($("canvas-rcActual"), $("svgLayer-rcActual")),
-          { disableDblClickHighlight: true,
-            onRendered: () => applyCompareFocus(_cmpCaseR, "learner", _rcSrc.nodes, _rcSrc.edges,
-                                                $("canvas-rcIdeal"), $("svgLayer-rcIdeal")) }
-        );
-
-        // 右カラム：復旧期実際マップ
-        const rcActualCanvas = $("canvas-rcActual");
-        if (mapLoadStatus.actualRecovery === "ready") {
-          renderReadOnlyMap(
-            window.actualMapRecovery.nodes,
-            window.actualMapRecovery.edges,
-            rcActualCanvas,
-            $("svgLayer-rcActual"),
-            $("canvasWrap-rcActual"),
-            $("canvasStat-rcActual"),
-            "-rcActual",
-            null, true,
-            () => clearHighlightRO($("canvas-rcIdeal"), $("svgLayer-rcIdeal")),
-            { disableDblClickHighlight: true,
-              onRendered: () => applyCompareFocus(_cmpCaseR, "actual", window.actualMapRecovery.nodes,
-                                                  window.actualMapRecovery.edges, rcActualCanvas, $("svgLayer-rcActual")) }
-          );
-        } else if (mapLoadStatus.actualRecovery === "error") {
-          if (rcActualCanvas) rcActualCanvas.innerHTML =
-            '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際マップの読み込みに失敗しました</div>';
-          markCompareActualUnavailable(PHASE.RECOVERY_COMPARE); // [NEW stage3]
-        } else {
-          if (rcActualCanvas) rcActualCanvas.innerHTML =
-            '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
-        }
-      });
+      // 両カラムの描画と強調は renderCompareColumns に集約（左カラムは修正後があればそちらを優先。§2）
+      requestAnimationFrame(() => renderCompareColumns(PHASE.RECOVERY_COMPARE));
 
       // 回答の復元
       const rcAns = phaseData.recoveryCompare.answers;
@@ -7222,6 +7136,7 @@
       if (ex) { ex.innerHTML = ""; ex.hidden = true; }
       if (ph) ph.hidden = false;
     }
+    requestAnimationFrame(() => updateCompareMoreHint(phase)); // 解説のはみ出し表示
   }
 
   // 学習者側の表示元マップ（データは書き換えない）
@@ -7322,6 +7237,82 @@
     return detail;
   }
 
+  // 比較画面の両カラム（学習者マップ・実際マップ）を描画し、onRendered で注目箇所の強調を適用する。
+  // 入場時と、ウィンドウの大きさを変えたとき（縮小表示の収まり直し）の両方から呼ぶ。
+  function renderCompareColumns(phase) {
+    const isA = phase === PHASE.ACUTE_COMPARE;
+    const c = COMPARE_CASES[phase];
+    const src = compareLearnerSource(phase);
+    const L = isA
+      ? { canvas: "canvas-ideal", svg: "svgLayer-ideal", wrap: "canvasWrap-ideal", stat: "canvasStat-ideal", suf: "-ideal" }
+      : { canvas: "canvas-rcIdeal", svg: "svgLayer-rcIdeal", wrap: "canvasWrap-rcIdeal", stat: "canvasStat-rcIdeal", suf: "-rcIdeal" };
+    const A = isA
+      ? { canvas: "canvas-actual", svg: "svgLayer-actual", wrap: "canvasWrap-actual", stat: "canvasStat-actual", suf: "-actual" }
+      : { canvas: "canvas-rcActual", svg: "svgLayer-rcActual", wrap: "canvasWrap-rcActual", stat: "canvasStat-rcActual", suf: "-rcActual" };
+    const status    = isA ? mapLoadStatus.actualAcute : mapLoadStatus.actualRecovery;
+    const actualMap = isA ? window.actualMapAcute : window.actualMapRecovery;
+
+    // 左カラム：学習者のマップ
+    renderReadOnlyMap(
+      src.nodes, src.edges, $(L.canvas), $(L.svg), $(L.wrap), $(L.stat), L.suf,
+      null, true,
+      () => clearHighlightRO($(A.canvas), $(A.svg)),
+      { disableDblClickHighlight: true,
+        onRendered: () => applyCompareFocus(c, "learner", src.nodes, src.edges, $(L.canvas), $(L.svg)) }
+    );
+
+    // 右カラム：実際マップ
+    const actualCanvas = $(A.canvas);
+    if (status === "ready") {
+      renderReadOnlyMap(
+        actualMap.nodes, actualMap.edges, actualCanvas, $(A.svg), $(A.wrap), $(A.stat), A.suf,
+        null, true,
+        () => clearHighlightRO($(L.canvas), $(L.svg)),
+        { disableDblClickHighlight: true,
+          onRendered: () => applyCompareFocus(c, "actual", actualMap.nodes, actualMap.edges, actualCanvas, $(A.svg)) }
+      );
+    } else if (status === "error") {
+      if (actualCanvas) actualCanvas.innerHTML = isA
+        ? '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際の組織構造マップの読み込みに失敗しました</div>'
+        : '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際マップの読み込みに失敗しました</div>';
+      markCompareActualUnavailable(phase);
+    } else {
+      if (actualCanvas) actualCanvas.innerHTML =
+        '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
+    }
+    return src;
+  }
+
+  // STEP 3（解説）が列からはみ出しているときだけ「↓ 続きがあります」を出す（最後までスクロールしたら消える）
+  function updateCompareMoreHint(phase) {
+    const px = COMPARE_PREFIX[phase];
+    const box = document.querySelector(`#${px}-study .cmp-step-explain`);
+    if (!box) return;
+    let hint = box.querySelector(".cmp-more-hint");
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "cmp-more-hint";
+      hint.textContent = "↓ 続きがあります";
+      box.appendChild(hint);
+      box.addEventListener("scroll", () => updateCompareMoreHint(phase));
+    }
+    // 案内自体の高さは除いて、残りの量で判定する
+    const hintH = box.classList.contains("has-more") ? hint.offsetHeight : 0;
+    const remaining = box.scrollHeight - hintH - box.scrollTop - box.clientHeight;
+    box.classList.toggle("has-more", remaining > 4);
+  }
+
+  // ウィンドウの大きさを変えたとき：比較画面なら両カラムを描き直して強調を再適用する（250ms debounce）
+  let _compareResizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(_compareResizeTimer);
+    _compareResizeTimer = setTimeout(() => {
+      if (!COMPARE_CASES[state.phase]) return;
+      renderCompareColumns(state.phase);
+      updateCompareMoreHint(state.phase);
+    }, 250);
+  });
+
   function markCompareActualUnavailable(phase) {
     if (_cmpVisit && _cmpVisit.phase === phase) {
       if (_cmpVisit.actualMapUnavailable) return;
@@ -7364,7 +7355,7 @@
       if (box) {
         box.innerHTML = COMPARE_PRINCIPLES.map(v =>
           `<label class="cmp-radio-item"><input type="radio" name="${px}-principle" value="${esc(v)}">` +
-          `<span>${esc(ICS_PRINCIPLE_JA[v])}<span class="cmp-radio-sub">${esc(v)}</span></span></label>`).join("");
+          `<span class="cmp-radio-ja">${esc(ICS_PRINCIPLE_JA[v])}</span><span class="cmp-radio-sub cmp-radio-en">${esc(v)}</span></label>`).join("");
         box.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", () => {
           if (!r.checked) return;
           const st = compareStudyOf(phase);
