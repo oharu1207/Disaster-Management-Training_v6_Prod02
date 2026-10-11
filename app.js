@@ -593,7 +593,9 @@
   //   removals: 削除候補ノード（reason フィールドは後方互換のため残すが UI からは入力されない）
   //   policyRationale: 削除候補選定の判断方針（150字以内・全削除に対して1つのみ）
   //     構造変換能力の三角測量データとして機能。マップ操作の意図解釈に使用。
-  window.phase5Data       = { removals: [], policyRationale: "" };
+  //   additions: [NEW 段階4] 準備画面で学習者が加えた復旧期の組織 [{ label, group, x, y, layerId(null可) }]。
+  //     準備画面の表示用コピー（state.nodes）や phaseData のマップには混ぜない（正本はここ）。
+  window.phase5Data       = { removals: [], policyRationale: "", additions: [] };
 
   // ── Phase6 状態変数 ────────────────────────────────────────────────────
   // Phase6 の状態は以下の 2 フラグ + phaseData.p6 の 3 点で表現する。
@@ -622,6 +624,9 @@
   // ⑨で引き継ぎノードを削除しただけの状態（isInitial=trueのまま件数だけ減る）を検知するために
   // 必要（addendum B rev B-7 §3）。
   let   phase6InitialNodeCount = 0;
+  // [NEW 補修] ⑨を作った直後の p6 の指紋（p6Fingerprint）。hasP6Edits() はこれとの差分で判定する。
+  // null（指紋のない旧データ・インポート直後）のときは従来の判定にフォールバックする。
+  let   phase6InitialFingerprint = null;
 
   // ================================================================
   // PHASE DATA STORE
@@ -827,6 +832,9 @@
     const _r = _restoringFromStorage ? { restored: true } : {};
     // [NEW stage3] 比較画面からの遷移（進行・戻る・終了・ヘッダー移動）
     if (from !== to && COMPARE_CASES[from] && !_restoringFromStorage) logCompareCaseExit(from);
+    // [NEW 段階4] 準備画面から出るたび（進む・戻る・ヘッダー移動）の判断スナップショット
+    if (from !== to && from === PHASE.RECOVERY_PREP && !_restoringFromStorage) logPrepDecisionSnapshot();
+    if (from !== to && from === PHASE.RECOVERY_PREP) _prepSelectedLabel = null; // 画面を出たら追加ノードの選択を解除
     logOp("PHASE_EXIT",     { from, fromName: getPhaseName(from), to, toName: getPhaseName(to), ..._r });
     logOp("PHASE_DURATION", { phase: from, phaseName: getPhaseName(from), ms: Date.now() - prevStartTime, ..._r });
     _logSegmentTransition(from, to);
@@ -1034,6 +1042,7 @@
           initialized:      phase6Initialized,
           removalSignature: phase6RemovalSignature,
           initialNodeCount: phase6InitialNodeCount,
+          initialFingerprint: phase6InitialFingerprint, // [NEW 補修]
         },
         // [NEW flow-v4 段階2補修2] エクスポート（recoveryScore）に出る採点値。復元しないと
         // リロード後のエクスポート・atSessionEnd で null になる。
@@ -1112,17 +1121,9 @@
         {}, 3000);
     }
 
-    // 2. 復旧期固有の必須追加ノードチェック（急性期由来ノードを⑨の中で削除した場合は対象外。
-    // それらの削除の是非は後段の復旧期採点・差分提示側で扱う）
-    const missingLabels = [...RECOVERY_REQUIRED_ADDITION_LABELS]
-      .filter(label => !placedLabels.has(label));
-    if (missingLabels.length > 0) {
-      flashMissingPaletteItems(missingLabels);
-      return _bailValidation(prevPhase, attemptedPhase,
-        "RECOVERY_REQUIRED_NODE_MISSING",
-        `復旧期で新たに必要な組織が未配置です：${missingLabels.join("、")}。パレットから追加してください。`,
-        { labels: missingLabels }, 5000);
-    }
+    // 2. [REMOVED 段階4] 復旧期固有の必須追加ノードチェック（RECOVERY_REQUIRED_NODE_MISSING）は撤廃。
+    // 追加は学習者の判断（準備画面・⑨）であり、加えなかった組織はフェーズ15の差分提示で node_missing
+    // として扱い、退出時のスナップで補う。RECOVERY_REQUIRED_ADDITION_LABELS の定数は残す。
 
     // 3. layerId 未設定チェック
     const unsetNodes = phaseData.p6.nodes.filter(n => n.layerId === null);
@@ -1195,6 +1196,8 @@
     // [NEW flow-v4] 遷移直前までの経過を、離脱元フェーズの区間に計上する
     // 復元直後の遷移では、復元処理中の時間を復元先フェーズの区間に計上する。
     segTimerTick(_restoringFromStorage ? p : prevPhase);
+    // [NEW 段階4] 準備画面を出る遷移なら、出る時点で⑨が作り直されるかを記録用に控える（遷移成立時に記録）
+    if (prevPhase === PHASE.RECOVERY_PREP && p !== prevPhase) _prepLeaveWillRebuild = p6NeedsRebuild();
 
     // drawingArrow が残留していたら必ずキャンセル
     if (state.drawingArrow) cancelArrowDraw();
@@ -1735,10 +1738,20 @@
           // [CHANGED flow-v4 段階2] 停止ではなく confirm 1回（INCOMPLETE_ADVANCE）。OK なら削除なし
           // （全ノード維持）で⑨を構築する。⑨を（再）構築するときだけ確認し、構築済み⑨への
           // 再入場・復元・終了後の見直しでは確認しない。
-          if (window.phase5Data.removals.length === 0 && p6NeedsRebuild() &&
+          // [CHANGED 段階4] 削除0件・追加0件をまとめて1回の confirm にし、gate 名を RECOVERY_PREP_INCOMPLETE に統一
+          // （旧名 RECOVERY_REMOVAL_EMPTY は以後記録しない）。
+          const _prepReasons = [];
+          if (window.phase5Data.removals.length === 0) _prepReasons.push("removal_empty");
+          if ((window.phase5Data.additions || []).length === 0) _prepReasons.push("addition_empty");
+          if (_prepReasons.length > 0 && p6NeedsRebuild() &&
               !_restoringFromStorage && !state.sessionEnded) {
-            const ok = confirmIncompleteAdvance("RECOVERY_REMOVAL_EMPTY", prevPhase, p,
-              "不要なノードが選択されていません。このまま進みますか？");
+            const _prepMsg = _prepReasons.length === 2
+              ? "削除するノードも追加する組織も選ばれていません。このまま進みますか？"
+              : _prepReasons[0] === "removal_empty"
+                ? "削除するノードが選ばれていません。このまま進みますか？"
+                : "追加する組織が選ばれていません。このまま進みますか？";
+            const ok = confirmIncompleteAdvance("RECOVERY_PREP_INCOMPLETE", prevPhase, p, _prepMsg,
+              { reasons: _prepReasons });
             if (!ok) {
               state.phase = prevPhase;
               activatePhaseView(prevPhase);
@@ -2115,11 +2128,17 @@
 
   // Phase5 の削除候補リストを一意なシグネチャ文字列に変換する。
   // nodeId をソートして結合するため、同一セットなら挿入順によらず同じ値になる。
+  // [CHANGED 段階4] 準備画面の追加（ラベルと層。位置は含めない）も含める。追加が0件のときは従来と
+  // 同じ文字列を返すため、段階2補修の p6State に保存された旧形式のシグネチャとも一致する。
   function getRemovalSignature() {
-    return window.phase5Data.removals
+    const removalSig = window.phase5Data.removals
       .map(r => r.nodeId)
       .sort()
       .join(",");
+    const adds = window.phase5Data.additions || [];
+    if (adds.length === 0) return removalSig;
+    const addSig = adds.map(a => `${a.label}@${a.layerId ?? "null"}`).sort().join(",");
+    return `${removalSig}|add:${addSig}`;
   }
 
   // Phase6 に「ユーザーが加えた編集」が存在するかを判定する。
@@ -2130,9 +2149,24 @@
   // 「編集なし」と誤判定されていた（addendum B rev B-7 §3-1）。
   // toggleRemovalCandidate() で confirm を出すかどうかの判断に使う。
   function hasP6Edits() {
+    // [CHANGED 補修] ⑨を作った直後との差分で判定する（層の配置や位置の移動も編集として扱う）
+    if (phase6InitialFingerprint != null) {
+      return p6Fingerprint(phaseData.p6) !== phase6InitialFingerprint;
+    }
+    // 指紋のない旧データ・インポート直後：従来の判定
     return phaseData.p6.nodes.some(n => !n.isInitial)
       || phaseData.p6.edges.length > 0
       || phaseData.p6.nodes.length !== phase6InitialNodeCount;
+  }
+
+  // [NEW 補修] p6 の指紋：ノードのラベル・層・位置（整数に丸める）と、矢印の from/to ラベル・種類。
+  // 並び順に依存しないよう、それぞれ文字列化して並べ替える（id は含めない）。
+  function p6Fingerprint(m) {
+    const nodes = (m?.nodes || []);
+    const labelOf = new Map(nodes.map(n => [n.id, n.label]));
+    const ns = nodes.map(n => `${n.label}|${n.layerId ?? "null"}|${Math.round(n.x)}|${Math.round(n.y)}`).sort();
+    const es = (m?.edges || []).map(e => `${labelOf.get(e.from)}>${labelOf.get(e.to)}|${e.label}`).sort();
+    return JSON.stringify({ n: ns, e: es });
   }
 
   // Phase6 の再構築（initPhase6Canvas の再実行）が必要かどうかを判定する。
@@ -2151,6 +2185,7 @@
     phase6Initialized      = false;
     phase6RemovalSignature = "";
     phase6InitialNodeCount = 0; // [NEW rev B-7]
+    phase6InitialFingerprint = null; // [NEW 補修]
     phaseData.p6 = {
       nodes: [], edges: [], answers: { q1: "", q2: "" },
       log: [], selectedNodeId: null, selectedEdgeId: null,
@@ -3193,6 +3228,13 @@
           if (state.sessionEnded) applySessionLock(); else releaseSessionLock(); // [NEW flow-v4]
           // [NEW stage3] 比較学習の記録（旧形式には無いため初期値で補う。旧設問の回答は各分岐で従来どおり復元）
           phaseData.compareStudy = normalizeCompareStudy(obj.compareStudy);
+          // [NEW 段階4] 準備画面の追加（旧形式には無いため [] で補う）
+          window.phase5Data.additions = normalizePrepAdditions(obj.phase5Data?.additions);
+          // 各分岐では additions の復元前にシグネチャを記録しているため、追加を含めて記録し直す
+          // （インポートした⑨を有効とみなす既存の扱いを保つ。追加0件なら値は変わらない）
+          if (phase6Initialized) phase6RemovalSignature = getRemovalSignature();
+          // [NEW 補修] インポートした⑨には構築直後の指紋がないため、従来の判定にフォールバックする
+          phase6InitialFingerprint = null;
           state.sessionId      = generateSessionId();
           state.operationLog   = importedLogs;
           state.phaseStartTime = Date.now();
@@ -3325,6 +3367,8 @@
       if (!confirm("削除候補の選択をすべてリセットしますか？")) return;
       window.phase5Data.removals = [];
       window.phase5Data.policyRationale = "";  // [ADDED]
+      window.phase5Data.additions = [];        // [NEW 段階4]
+      _prepSelectedLabel = null;
       invalidatePhase6();
       logOp("RESET", { target: "phase5Removals" });
       renderPhase5Map();
@@ -6718,6 +6762,184 @@
     });
     renderRemovalList();
     updatePhase6Btn();
+    renderPrepAdditions();       // [NEW 段階4]
+    renderPrepAdditionPalette(); // [NEW 段階4]
+  }
+
+  // ================================================================
+  // [NEW 段階4] 復旧期準備画面での追加判断
+  // 追加ノードの正本は phase5Data.additions。準備画面のキャンバスに専用の要素として描画し、
+  // state.nodes（急性期基準マップの表示用コピー）や phaseData のマップには混ぜない。
+  // ================================================================
+  const PREP_ADDITION_NODES = RECOVERY_PALETTE_NODES.filter(n => RECOVERY_REQUIRED_ADDITION_LABELS.has(n.label));
+  let _prepSelectedLabel = null;
+
+  function normalizePrepAdditions(v) {
+    if (!Array.isArray(v)) return [];
+    const seen = new Set();
+    return v.filter(a => a && typeof a.label === "string" && RECOVERY_REQUIRED_ADDITION_LABELS.has(a.label) && !seen.has(a.label) && seen.add(a.label))
+      .map(a => ({
+        label: a.label,
+        group: a.group || PREP_ADDITION_NODES.find(n => n.label === a.label)?.group || "g-unit",
+        x: Number.isFinite(a.x) ? a.x : 0, y: Number.isFinite(a.y) ? a.y : 0,
+        layerId: [1, 2, 3, 4].includes(a.layerId) ? a.layerId : null,
+      }));
+  }
+
+  function prepAdditions() {
+    if (!Array.isArray(window.phase5Data.additions)) window.phase5Data.additions = [];
+    return window.phase5Data.additions;
+  }
+
+  // 追加の内容（有無・層）が変わるとき：⑨が構築済みなら、削除候補の変更と同じ規則で無効化する
+  function prepConfirmAdditionChange() {
+    if (!phase6Initialized) return true;
+    if (hasP6Edits()) {
+      if (!confirm("追加する組織を変更すると、復旧期マップの編集内容がリセットされます。続けますか？")) return false;
+    }
+    invalidatePhase6();
+    logOp("INVALIDATE_PHASE6", { reason: "addition_changed" });
+    return true;
+  }
+
+  function renderPrepAdditionPalette() {
+    const box = $("palette-p5add");
+    if (!box) return;
+    const placed = new Set(prepAdditions().map(a => a.label));
+    box.innerHTML = "";
+    for (const n of PREP_ADDITION_NODES) {
+      const div = document.createElement("div");
+      const isPlaced = placed.has(n.label);
+      div.className = "pitem" + (isPlaced ? " pitem-placed" : "");
+      div.innerHTML = `
+        <span class="pico">${n.icon || ""}</span>
+        <span class="plabel">${esc(n.label)}</span>
+        <span class="ptag">${isPlaced ? "配置済み" : "＋追加"}</span>
+      `;
+      if (!isPlaced) div.addEventListener("click", () => prepAddAddition(n));
+      div.addEventListener("mouseenter", () => showNodeTooltip(n.label, div, "p5NodeTooltip"));
+      div.addEventListener("mouseleave", () => hideNodeTooltip("p5NodeTooltip"));
+      box.appendChild(div);
+    }
+  }
+
+  function renderPrepAdditions() {
+    const canvas = $("canvas-p5");
+    if (!canvas) return;
+    canvas.querySelectorAll(".node.prep-addition").forEach(el => el.remove());
+    for (const a of prepAdditions()) {
+      const div = document.createElement("div");
+      div.className = `node prep-addition layer-${a.layerId || "none"}` + (a.label === _prepSelectedLabel ? " selected" : "");
+      div.dataset.prepLabel = a.label;
+      div.style.left = a.x + "px";
+      div.style.top  = a.y + "px";
+      div.innerHTML = `<span class="prep-add-badge">追加</span><div class="ntitle">${esc(a.label)}</div>`;
+      const del = document.createElement("div");
+      del.className = "node-delete-btn";
+      del.textContent = "×";
+      del.style.display = a.label === _prepSelectedLabel ? "flex" : "none";
+      del.addEventListener("click", e => { e.stopPropagation(); prepRemoveAddition(a.label); });
+      div.appendChild(del);
+      div.addEventListener("click", e => e.stopPropagation()); // 削除候補のトグルにしない
+      div.addEventListener("mouseenter", () => showNodeTooltip(a.label, div, "p5NodeTooltip"));
+      div.addEventListener("mouseleave", () => hideNodeTooltip("p5NodeTooltip"));
+      setupPrepAdditionDrag(div, a);
+      canvas.appendChild(div);
+    }
+  }
+
+  function prepSelectAddition(label) {
+    _prepSelectedLabel = (_prepSelectedLabel === label) ? null : label;
+    renderPrepAdditions();
+  }
+
+  function prepAddAddition(n) {
+    if (state.phase !== PHASE.RECOVERY_PREP || state.sessionEnded) return;
+    if (prepAdditions().some(a => a.label === n.label)) return;
+    if (!prepConfirmAdditionChange()) return;
+    // 位置は既存の addNode と同じ規則（x・y ともキャンバス内のランダム）。層は未設定（灰色）。
+    const rect = canvasWrap.getBoundingClientRect();
+    const x = 80 + Math.floor(Math.random() * Math.max(rect.width - 280, 80));
+    const y = 60 + Math.floor(Math.random() * Math.max(rect.height - 120, 60));
+    prepAdditions().push({ label: n.label, group: n.group, x, y, layerId: null });
+    _prepSelectedLabel = n.label;
+    logOp("PREP_ADDITION_ADD", { label: n.label });
+    renderPrepAdditions();
+    renderPrepAdditionPalette();
+    debouncedSave();
+  }
+
+  function prepRemoveAddition(label) {
+    if (state.phase !== PHASE.RECOVERY_PREP || state.sessionEnded) return;
+    const a = prepAdditions().find(x => x.label === label);
+    if (!a) return;
+    if (!confirm(`「${label}」を追加から外しますか？`)) return;
+    if (!prepConfirmAdditionChange()) return;
+    window.phase5Data.additions = prepAdditions().filter(x => x.label !== label);
+    if (_prepSelectedLabel === label) _prepSelectedLabel = null;
+    logOp("PREP_ADDITION_REMOVE", { label, layerId: a.layerId ?? null });
+    renderPrepAdditions();
+    renderPrepAdditionPalette();
+    debouncedSave();
+  }
+
+  // 準備画面専用の最小限のドラッグ。層はドロップ位置の y から getLayerIdFromY で決める（マップ構築画面と同じ判定。
+  // 準備画面のマップは fitToWrap しないため、キャンバス座標をそのまま使える）。
+  function setupPrepAdditionDrag(div, a) {
+    div.addEventListener("pointerdown", e => {
+      if (e.target.classList.contains("node-delete-btn")) return;
+      if (state.phase !== PHASE.RECOVERY_PREP || state.sessionEnded) return;
+      e.preventDefault();
+      e.stopPropagation();
+      div.setPointerCapture(e.pointerId);
+      const sx = e.clientX, sy = e.clientY, bx = a.x, by = a.y;
+      let nx = bx, ny = by, moved = false;
+      const onMove = ev => {
+        if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 3) return;
+        moved = true;
+        const rect = canvasWrap.getBoundingClientRect();
+        nx = clamp(bx + ev.clientX - sx, 0, rect.width - 200);
+        ny = clamp(by + ev.clientY - sy, 0, rect.height - 80);
+        div.style.left = nx + "px";
+        div.style.top  = ny + "px";
+        highlightLayer(getLayerIdFromY(ny));
+      };
+      const onUp = () => {
+        div.removeEventListener("pointermove", onMove);
+        div.removeEventListener("pointerup", onUp);
+        try { div.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
+        clearLayerHighlight();
+        if (!moved) { prepSelectAddition(a.label); return; }
+        const fromLayerId = a.layerId ?? null;
+        const toLayerId = getLayerIdFromY(ny);
+        // 層が変わる場合はシグネチャが変わるため、⑨の無効化を確認する（位置だけなら⑨はそのまま）
+        if (toLayerId !== fromLayerId && !prepConfirmAdditionChange()) {
+          div.style.left = bx + "px";
+          div.style.top  = by + "px";
+          return;
+        }
+        a.x = nx; a.y = ny; a.layerId = toLayerId;
+        div.classList.remove("layer-none", "layer-1", "layer-2", "layer-3", "layer-4");
+        div.classList.add(`layer-${toLayerId}`);
+        logOp("PREP_ADDITION_MOVE", { label: a.label, fromLayerId, toLayerId });
+        debouncedSave();
+      };
+      div.addEventListener("pointermove", onMove);
+      div.addEventListener("pointerup", onUp);
+    });
+  }
+
+  // 準備画面から出るたびの判断スナップショット（構造変換力Cの最初の判断。正誤判定はしない）
+  let _prepLeaveWillRebuild = null;
+  function logPrepDecisionSnapshot() {
+    const adds = prepAdditions();
+    const addedLabels = new Set(adds.map(a => a.label));
+    logOp("PREP_DECISION_SNAPSHOT", {
+      removals: [...new Set(window.phase5Data.removals.map(r => r.label))],
+      additions: adds.map(a => ({ label: a.label, layerId: a.layerId ?? null })),
+      notAdded: PREP_ADDITION_NODES.map(n => n.label).filter(l => !addedLabels.has(l)),
+      phase6WillRebuild: _prepLeaveWillRebuild,
+    });
   }
 
   function toggleRemovalCandidate(_nodeId, label) {
@@ -6880,6 +7102,25 @@
       });
     }
 
+    // [NEW 段階4] 準備画面で加えた組織を、位置・層（null 可）ごと引き継ぐ。
+    // isInitial: true（⑨構築直後に hasP6Edits() が「編集あり」と判定しないため）、origin で由来を区別する。
+    const _placedNow = new Set(phaseData.p6.nodes.map(n => n.label));
+    for (const a of (window.phase5Data.additions || [])) {
+      if (_placedNow.has(a.label)) continue;
+      _placedNow.add(a.label);
+      phaseData.p6.nodes.push({
+        id:          "n-" + uid(),
+        label:       a.label,
+        group:       a.group,
+        x:           a.x,
+        y:           a.y,
+        layerId:     a.layerId ?? null,
+        layerReason: "",
+        isInitial:   true,
+        origin:      "prep_addition",
+      });
+    }
+
     phaseData.p6.edges = [];
 
     phaseData.p6.answers = { q1: "", q2: "" };
@@ -6889,6 +7130,7 @@
     phase6Initialized      = true;
     phase6RemovalSignature = getRemovalSignature();
     phase6InitialNodeCount = phaseData.p6.nodes.length; // [NEW rev B-7] hasP6Edits() 用
+    phase6InitialFingerprint = p6Fingerprint(phaseData.p6); // [NEW 補修] 構築直後の指紋
     logOp("INIT_PHASE6", { nodeCount: phaseData.p6.nodes.length });
     // [NEW 修正案A] phaseData.p6 を作り直したので、直後の loadPhaseData("p6") までは旧キャンバスを書き戻さない
     state.canvasSourceKey = null;
@@ -7669,6 +7911,15 @@
   function wireEvents() {
     $("btnExport")?.addEventListener("click", exportJSON);
     wireCompareStudy(); // [NEW stage3]
+    // [NEW 段階4] 準備画面：選択中の追加ノードを Delete / Backspace で追加から外す
+    document.addEventListener("keydown", e => {
+      if (state.phase !== PHASE.RECOVERY_PREP || !_prepSelectedLabel) return;
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      prepRemoveAddition(_prepSelectedLabel);
+    });
     $("btnImport")?.addEventListener("click", importJSON);
     $("btnReset")?.addEventListener("click", resetAll);
 
@@ -9341,6 +9592,8 @@
         if (saved.phase5Data) Object.assign(window.phase5Data, saved.phase5Data);
         // [NEW stage3] compareStudy は phaseData に含めて保存している。欠けていれば初期値で補う。
         phaseData.compareStudy = normalizeCompareStudy(phaseData.compareStudy);
+        // [NEW 段階4] 準備画面の追加（旧データには無いため [] で補う）
+        window.phase5Data.additions = normalizePrepAdditions(saved.phase5Data?.additions);
         state.canvasSourceKey = null; // [NEW 修正案A] 復元した phaseData はまだキャンバスに読み込んでいない
         // [NEW flow-v4 段階2補修] ⑨の状態変数の復元（phaseData.p6・phase5Data の復元後、switchPhase の前）。
         // (a) 保存済みの p6State をそのまま戻す。(b) p6State の無い旧データは importJSON と同じ規則で導出する。
@@ -9349,6 +9602,8 @@
           phase6Initialized      = !!saved.p6State.initialized;
           phase6RemovalSignature = saved.p6State.removalSignature ?? "";
           phase6InitialNodeCount = saved.p6State.initialNodeCount ?? 0;
+          phase6InitialFingerprint = typeof saved.p6State.initialFingerprint === "string"
+            ? saved.p6State.initialFingerprint : null; // [NEW 補修] 指紋のない旧データは null（従来の判定）
         } else {
           phase6Initialized = (phaseData.p6?.nodes?.length ?? 0) > 0;
           if (phase6Initialized) {

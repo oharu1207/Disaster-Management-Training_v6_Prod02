@@ -1896,3 +1896,24 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
   border-width: 2px; border-style: dashed; border-color: rgba(255, 209, 102, 0.7);
   opacity: 0.85;
 }
+
+/* ================================================================
+   [NEW 段階4] 復旧期準備画面：追加ノード一覧と追加ノード
+   ================================================================ */
+#phase-5 .p5-split-block { display: flex; flex-direction: column; }
+#phase-5 #palette-p5add { overflow: visible; }
+.node.prep-addition { cursor: grab; touch-action: none; }
+.node.prep-addition:active { cursor: grabbing; }
+.node .prep-add-badge {
+  position: absolute; top: -8px; left: -6px;
+  font-size: 9px; font-weight: 800; line-height: 1;
+  padding: 2px 5px; border-radius: 999px;
+  background: var(--bg2); color: var(--accent); border: 1px solid var(--accent);
+  pointer-events: none;
+}
+/* 準備画面は急性期由来ノードの削除ボタンを常に隠している（#canvasWrap-p5 .node-delete-btn）。
+   選択中の追加ノードだけ表示する（追加から外す操作用） */
+#canvasWrap-p5 .node.prep-addition.selected .node-delete-btn { display: flex !important; }
+/* [NEW 補修] 準備画面ツールバー：操作案内と件数表示を分ける */
+#phase-5 .p5-toolbar-hint { color: var(--text-dim); }
+#phase-5 #canvasStat-p5 { flex: 0 0 auto; }

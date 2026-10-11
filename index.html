@@ -526,25 +526,33 @@
   <div class="map-sidebar">
     <div class="sb-block">
       <div class="scenario-badge">復旧期 準備</div>
+      <!-- [CHANGED 段階4] 削除と追加を一度に判断する説明に置き換え -->
       <div style="font-size:13px;line-height:1.6;margin-top:8px;color:#fff;">
-       急性期の基準となる組織体制から，<strong style="color:#fff;">復旧期には不要になるノード</strong>をクリックして選んでください。
+       急性期の基準となる組織体制から、復旧期には不要になるノードをクリックして選んでください。<br>
+       復旧期に加える必要があると考える組織があれば、下の「追加ノード一覧」から追加し、該当する層へドラッグしてください。
       </div>
     </div>
-    <div class="sb-block" id="p5RemovalBlock" style="flex:1;min-height:0;overflow-y:auto;">
+    <!-- [CHANGED 段階4] 上段：削除候補ノード（既存）／下段：追加ノード一覧（新設）。各段の中でスクロールする -->
+    <div class="sb-block p5-split-block" id="p5RemovalBlock" style="flex:1;min-height:0;overflow-y:auto;">
       <div class="sb-title">🗑 削除候補ノード</div>
       <div id="p5RemovalList"><span style="color:var(--text-muted);font-size:12px;">（まだ選択されていません）</span></div>
+    </div>
+    <div class="sb-block p5-split-block" id="p5AdditionBlock" style="flex:1;min-height:0;overflow-y:auto;">
+      <div class="sb-title">➕ 追加ノード一覧</div>
+      <div class="palette" id="palette-p5add"></div>
     </div>
     <div class="sb-block">
       <button id="btnToPhase6" class="btn-primary full"
               onclick="goToPhase6()">復旧期マップへ進む →</button>
-      <div id="btnToPhase6Hint" class="p5-hint">不要なノードを1つ以上選択してください</div>
     </div>
   </div><!-- /map-sidebar -->
 
   <!-- CANVAS (read-only) -->
   <div class="canvas-col">
     <div class="canvas-toolbar">
-      <span class="canvas-stat" id="canvasStat-p5">読み取り専用 — ノードをクリックして削除候補に選択</span>
+      <!-- [CHANGED 補修] 操作案内は件数表示（canvasStat-p5。描画時に「ノード: N ／ 矢印: M」で上書きされる）と別要素にする -->
+      <span class="canvas-stat p5-toolbar-hint" id="p5ToolbarHint">ノードをクリックして削除候補に選択／追加した組織はドラッグで層を決定</span>
+      <span class="canvas-stat" id="canvasStat-p5"></span>
       <button id="p5TooltipToggle" class="btn-tooltip-toggle">💡 組織説明: ON</button>
     </div>
     <div id="p5NodeTooltip" class="acute-node-tooltip" style="display:none;"></div>
@@ -591,7 +599,7 @@
     <div class="sb-block">
       <div class="scenario-badge">復旧期</div>
       <div style="font-weight:700;font-size:14px;line-height:1.5;margin-top:7px;">復旧期の基準となる組織構造を<br>完成させてください</div>
-      <div style="font-size:12px;color:#fff;margin-top:6px;">急性期のマップから不要なノードを除いた状態が初期配置です。パレットから新たなノードを追加し、矢印で関係を構築してください。</div>
+      <div style="font-size:12px;color:#fff;margin-top:6px;">復旧期準備で選んだ削除と追加を反映した状態が初期配置です。矢印で関係を構築してください。</div>
     </div>
     <div class="sb-block" style="flex:1;min-height:0;display:flex;flex-direction:column;">
       <div class="sb-title">🔧 追加可能なノード</div>
