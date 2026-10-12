@@ -12,6 +12,7 @@
 <header class="app-header">
   <div class="header-left">
     <div class="logo" title="ICS 学習支援システム"><span class="logo-ics">ICS</span><span class="logo-name">学習支援<span class="logo-sub">システム</span></span></div>
+    <span id="participantBadge" class="participant-badge" title="参加者番号" hidden></span>
     <!-- [CHANGED flow-v2] ステップ13個に更新（修正フェーズ Phase 11/13 を廃止。編集は
          直前の差分提示walkthrough内で完結する）。data-phase は PHASE 定数値に合わせて変更
          [CHANGED flow-v4] FEATURES で無効化したステップは JS が非表示にし、.step-num を表示順に振り直す
@@ -56,6 +57,18 @@
     <button id="btnReset" class="btn-danger">初期化</button>
   </div>
 </header>
+
+<!-- ===== セッション準備（参加者番号の入力。研究者が入力） [NEW] ===== -->
+<div id="sessionSetup" class="session-setup" hidden>
+  <div class="session-setup-card" role="dialog" aria-modal="true" aria-labelledby="sessionSetupTitle">
+    <h2 id="sessionSetupTitle">セッション準備</h2>
+    <p class="session-setup-note">研究者が入力してください。</p>
+    <label class="session-setup-label" for="setupParticipantId">参加者番号</label>
+    <input id="setupParticipantId" class="session-setup-input" type="text" autocomplete="off" spellcheck="false" maxlength="4" placeholder="P001">
+    <div class="session-setup-hint">形式：P と3桁の数字（例：P001）</div>
+    <button id="btnSetupStart" class="btn-primary session-setup-start" type="button" disabled>開始</button>
+  </div>
+</div>
 
 <!-- ===== PHASE 0 ===== -->
 <div id="phase-0" class="phase-view active">
@@ -975,6 +988,7 @@
     <h2>学習は終了しました</h2>
     <p>学習は終了しました。研究者の指示があるまで、上部のステップから前の画面を見直すことができます（変更はできません）。</p>
     <p class="session-end-time">終了時刻：<span id="sessionEndTime"></span></p>
+    <p class="session-end-save" id="sessionEndSaveStatus" hidden></p>
   </div>
 </div><!-- /phase-end -->
 

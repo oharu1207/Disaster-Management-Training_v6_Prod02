@@ -2045,3 +2045,47 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
 .cmp-zoom-stage { position: relative; }
 .cmp-zoom-stage .phase-layer-bands { position: absolute; inset: 0; }
 .cmp-zoom-stage .phase-canvas, .cmp-zoom-stage .phase-svg-layer { position: absolute; left: 0; top: 0; right: auto; bottom: auto; }
+
+/* [NEW] 終了時の自動保存の結果 */
+.session-end-save { font-size: 13px; color: var(--green); margin-top: 6px; word-break: break-all; }
+.session-end-save[hidden] { display: none; }
+.session-end-save.is-error {
+  color: #fff; background: #c62828; border-radius: 8px; padding: 10px 12px;
+  font-size: 15px; font-weight: 800;
+}
+
+/* ================================================================
+   [NEW] 参加者番号：ヘッダーの表示とセッション準備画面
+   ================================================================ */
+.participant-badge {
+  flex-shrink: 0; white-space: nowrap;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+  padding: 1px 6px; border-radius: 6px;
+  color: var(--text-dim); border: 1px solid var(--border2); background: var(--bg3);
+}
+.participant-badge[hidden] { display: none; }
+.session-setup {
+  position: fixed; inset: 0; z-index: 3000;
+  background: var(--bg); display: flex; align-items: center; justify-content: center;
+}
+.session-setup[hidden] { display: none; }
+.session-setup-card {
+  width: min(420px, 92vw); padding: 28px 30px; border-radius: 14px;
+  background: var(--card); border: 1px solid var(--border2);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.session-setup-card h2 { margin: 0 0 2px; font-size: 20px; color: var(--text); }
+.session-setup-note { margin: 0 0 8px; font-size: 13px; color: var(--text-dim); }
+.session-setup-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.session-setup-input {
+  font-size: 22px; font-weight: 800; letter-spacing: 2px; padding: 8px 12px;
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border2); border-radius: 8px;
+}
+.session-setup-input:focus { outline: none; border-color: var(--accent); }
+.session-setup-hint { font-size: 12px; color: var(--text-muted); }
+.session-setup-start { margin-top: 8px; padding: 10px 16px; font-size: 15px; }
+.session-setup-start:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 番号の表示が増えた分、1920px で1行に収まるよう詰める */
+.participant-badge { font-size: 10px; padding: 0 4px; letter-spacing: 0.3px; }
+.phase-step { padding: 4px 3px; }
+.step-label { letter-spacing: -0.4px; }

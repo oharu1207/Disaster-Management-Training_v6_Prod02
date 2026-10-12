@@ -569,6 +569,10 @@
     // [NEW 修正案A] キャンバス（state.nodes/edges）をどの phaseData[key] から読み込んだか。
     // saveToLocalStorage の書き戻しはこのキーが今の画面のキーと一致するときだけ行う。
     canvasSourceKey: null,
+    // [NEW] 終了時の自動保存の結果 { ok, fileName } | { ok:false, message }（終了画面の表示用）
+    sessionEndExport: null,
+    // [NEW] 参加者番号（研究者がセッション準備画面で入力。形式 P+3桁）
+    participantId: null,
   };
 
   window.idealMapAcute     = null;
@@ -808,7 +812,8 @@
     _deviceInfoTimer = setTimeout(() => logDeviceInfo("resize"), 1000);
   });
 
-  function logOp(type, detail = {}) {
+  // opts.partOfSessionEnd：終了操作の一部（終了時の自動保存）。見直し中の操作ではないので postSession を付けない
+  function logOp(type, detail = {}, opts = {}) {
     state.operationLog.push({
       ts: new Date().toISOString(),
       sessionId: state.sessionId,
@@ -817,7 +822,7 @@
       activePhaseKey,
       type,
       detail,
-      ...(state.sessionEnded ? { postSession: true } : {}),  // [NEW flow-v4] 終了後の見直し中の操作
+      ...(state.sessionEnded && !opts.partOfSessionEnd ? { postSession: true } : {}),  // [NEW flow-v4] 終了後の見直し中の操作
     });
   }
 
@@ -1064,6 +1069,8 @@
         sessionEnded:       state.sessionEnded,        // [NEW flow-v4]
         sessionEndedAt:     state.sessionEndedAt,      // [NEW flow-v4]
         sessionEndSnapshot: state.sessionEndSnapshot,  // [NEW flow-v4]
+        sessionEndExport:   state.sessionEndExport,    // [NEW] 終了時の自動保存の結果（終了画面の表示用）
+        participantId:      state.participantId,       // [NEW] 参加者番号
         // [NEW flow-v4 段階2補修] ⑨の状態変数。復元時に戻さないと p6NeedsRebuild() が true になり、
         // initPhase6Canvas() が学習者の⑨（phaseData.p6）を上書きしてしまう。
         p6State: {
@@ -1842,10 +1849,70 @@
   // ================================================================
   // SESSION END — 学習終了・閲覧専用ロック [NEW flow-v4]
   // ================================================================
+  // ================================================================
+  // [NEW] 参加者番号とセッション準備画面
+  // ================================================================
+  const PARTICIPANT_ID_RE = /^P\d{3}$/;
+  const normalizeParticipantId = v => String(v ?? "").trim().replace(/^p/, "P");
+
+  function renderParticipantBadge() {
+    const el = $("participantBadge");
+    if (!el) return;
+    el.textContent = state.participantId || "";
+    el.hidden = !state.participantId;
+  }
+
+  // 保存データがなく新しく始めるときだけ表示する。開始までは区間タイマー・チュートリアルを始めない。
+  function showSessionSetup(onStart) {
+    const ov = $("sessionSetup"), inp = $("setupParticipantId"), btn = $("btnSetupStart");
+    if (!ov || !inp || !btn) { onStart(null); return; }
+    ov.hidden = false;
+    document.body.classList.add("session-setup-open");
+    const sync = () => { btn.disabled = !PARTICIPANT_ID_RE.test(normalizeParticipantId(inp.value)); };
+    const start = () => {
+      const id = normalizeParticipantId(inp.value);
+      if (!PARTICIPANT_ID_RE.test(id)) return;
+      if (!confirm(`${id} で開始します。よろしいですか？`)) return;
+      ov.hidden = true;
+      document.body.classList.remove("session-setup-open");
+      onStart(id);
+    };
+    inp.addEventListener("input", sync);
+    inp.addEventListener("keydown", e => { if (e.key === "Enter" && !btn.disabled) start(); });
+    btn.addEventListener("click", start);
+    sync();
+    setTimeout(() => inp.focus(), 0);
+  }
+
+  function startNewSession(id) {
+    if (id) {
+      state.participantId = id;
+      logOp("PARTICIPANT_ID_SET", { participantId: id });
+    }
+    renderParticipantBadge();
+    // オリエンテーションの滞在時間と区間タイマーは、ここから数え始める（準備画面は区間に含めない）
+    state.phaseStartTime = Date.now();
+    clearSegTimerStorage();
+    _resetSegTimer();
+    startSegTimer();
+    tutorialBeginIfVisible();
+    saveToLocalStorage();
+  }
+
   function renderSessionEndView() {
     const el = $("sessionEndTime");
     if (!el) return;
     el.textContent = state.sessionEndedAt ? new Date(state.sessionEndedAt).toLocaleString() : "";
+    // [NEW] 終了時の自動保存の結果
+    const st = $("sessionEndSaveStatus");
+    if (st) {
+      const r = state.sessionEnded ? state.sessionEndExport : null;
+      st.classList.toggle("is-error", !!(r && !r.ok));
+      st.textContent = !r ? ""
+        : r.ok ? `学習データを保存しました（${r.fileName}）。`
+               : "データを自動保存できませんでした。研究者に声をかけてください。";
+      st.hidden = !r;
+    }
   }
 
   // 終了操作。btnToRecoveryRecord（RECOVERY_COMPARE）から呼ぶ。
@@ -1878,6 +1945,17 @@
     state.sessionEndedAt = endedAt;
     renderSessionEndView();
     applySessionLock();
+    saveToLocalStorage();
+    // [NEW] 学習終了時の自動エクスポート（「JSON保存」と同じ内容。クリック操作の延長で遅らせずに実行）
+    try {
+      const fileName = exportJSON("session_end");
+      state.sessionEndExport = { ok: true, fileName };
+    } catch (err) {
+      const message = String(err && err.message || err);
+      logOp("EXPORT_FAILED", { trigger: "session_end", message }, { partOfSessionEnd: true });
+      state.sessionEndExport = { ok: false, message };
+    }
+    renderSessionEndView();
     saveToLocalStorage();
   }
 
@@ -2989,22 +3067,44 @@
       segmentTimes:   buildSegmentTimes(), // [NEW flow-v4 段階2] 区間ごとの累積滞在時間
       compareStudy:   phaseData.compareStudy, // [NEW stage3] 比較・分析の原則選択と解説の閲覧
       deviceInfo:     _lastDeviceInfo,         // [NEW 補修] 最後に記録した端末情報
+      participantId:  state.participantId,     // [NEW] 参加者番号（atSessionEnd にも含まれる）
     };
   }
 
-  function exportJSON() {
+  // [NEW] エクスポートのファイル名：端末の現地時刻で日付と時刻（秒まで）を入れる。終了時の自動保存は末尾 _end。
+  // （同じ名前のファイルにブラウザが「(1)」を付けるのを防ぐ）
+  function exportFileName(trigger) {
+    const d = new Date();
+    const p = n => String(n).padStart(2, "0");
+    const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const time = `${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+    // 参加者番号が設定されていれば先頭に付ける（未設定の旧データは従来のファイル名）
+    const prefix = state.participantId ? `${state.participantId}_` : "";
+    return `${prefix}ics_log_${SCENARIO.id}_${date}_${time}${trigger === "session_end" ? "_end" : ""}.json`;
+  }
+
+  // trigger："manual"（JSON保存ボタン）／"session_end"（学習終了時の自動保存）。保存したファイル名を返す。
+  function exportJSON(trigger = "manual") {
+    const fileName = exportFileName(trigger);
     logOp("EXPORT", {
       currentPhase: state.phase,
       currentPhaseName: getPhaseName(state.phase),
       operationLogCount: state.operationLog.length,
       currentPhaseElapsedMs: Date.now() - state.phaseStartTime, // [NEW flow-v4] 打ち切り時の最終画面滞在時間推定用
-    });
+      trigger,   // [NEW]
+      fileName,  // [NEW]
+    }, { partOfSessionEnd: trigger === "session_end" });
     const blob = new Blob([JSON.stringify(buildExportObject(), null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `ics_log_${SCENARIO.id}_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = fileName;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    a.remove();
+    // URL の解放はダウンロード開始後に行う（直後に解放すると Safari 等で保存が失敗することがあるため）
+    const url = a.href;
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return fileName;
   }
 
   function validateEdgeConflicts(edges) {
@@ -3213,6 +3313,10 @@
           }
 
           if (hasConflict) showToast("読み込んだデータに矛盾する矢印の組み合わせが含まれています", 3000);
+          state.sessionEndExport = null; // [NEW] 終了時の自動保存の結果はこのセッションのものではないため消す
+          // [NEW] 参加者番号（無い旧データは未設定）
+          state.participantId = PARTICIPANT_ID_RE.test(obj.participantId || "") ? obj.participantId : null;
+          renderParticipantBadge();
           if (state.sessionEnded) applySessionLock(); else releaseSessionLock(); // [NEW flow-v4]
           // [NEW stage3] 比較学習の記録（旧形式には無いため初期値で補う。旧設問の回答は各分岐で従来どおり復元）
           phaseData.compareStudy = normalizeCompareStudy(obj.compareStudy);
@@ -8125,7 +8229,7 @@
   // EVENTS
   // ================================================================
   function wireEvents() {
-    $("btnExport")?.addEventListener("click", exportJSON);
+    $("btnExport")?.addEventListener("click", () => exportJSON("manual"));
     wireCompareStudy(); // [NEW stage3]
     // [NEW 補修] 比較画面のマップ拡大表示
     document.querySelectorAll(".cmp-zoom-btn").forEach(btn => btn.addEventListener("click", e => {
@@ -9782,9 +9886,11 @@
   // ── localStorage 復元フロー ────────────────────────────────────────
   (async function restoreFromStorage() {
     const saved = loadFromLocalStorage();
+    let restored = false; // [NEW] 前回の作業を復元したか（しなければ新しいセッション＝準備画面を出す）
     if (saved) {
       const savedAt = new Date(saved.savedAt).toLocaleString();
       if (confirm(`前回の作業（${savedAt} 保存）を復元しますか？\n「キャンセル」を選ぶと前回の作業は破棄され、新しいセッションとして開始します。`)) {
+        restored = true;
         state.sessionId      = saved.sessionId      || generateSessionId();
         state.operationLog   = saved.operationLog   || [];
         state.phaseStartTime = Date.now();  // 復元時刻にリセット（異常滞在時間を防ぐ）
@@ -9794,6 +9900,9 @@
         state.sessionEnded       = saved.sessionEnded       ?? false;
         state.sessionEndedAt     = saved.sessionEndedAt     ?? null;
         state.sessionEndSnapshot = saved.sessionEndSnapshot ?? null;
+        state.sessionEndExport   = saved.sessionEndExport ?? null; // [NEW]
+        state.participantId      = PARTICIPANT_ID_RE.test(saved.participantId || "") ? saved.participantId : null; // [NEW]
+        renderParticipantBadge();
         if (state.sessionEnded) applySessionLock();
         logDeviceInfo("restore"); // [NEW 補修]
         if (saved.phaseStartTime) {
@@ -9931,15 +10040,35 @@
         const hint = $("startMapHint"); if (hint) hint.style.display = "none";
       }
     }
+    // [CHANGED] 新しく始めるとき（保存データなし・復元しない）は、セッション準備画面で参加者番号を
+    // 入力してから、チュートリアルと区間タイマーを開始する。
+    if (!restored) {
+      showSessionSetup(startNewSession);
+      return;
+    }
     // Phase 0 に居て未完遂なら TUTORIAL_START
     tutorialBeginIfVisible();
-    // [NEW flow-v4 段階2] 区間タイマー開始（復元しない場合は新規に数え始める）
-    if (!saved) { clearSegTimerStorage(); _resetSegTimer(); }
+    // [NEW flow-v4 段階2] 区間タイマー開始
     startSegTimer();
   })();
 
   // 被験者切替・実験者向け運用 API
-  window.__icsClearStorage = () => { clearLocalStorage(); clearSegTimerStorage(); };
+  window.__icsClearStorage = () => {
+    clearLocalStorage(); clearSegTimerStorage();
+    state.participantId = null; // [NEW] 番号も消去（次の起動時にセッション準備画面が出る）
+    renderParticipantBadge();
+  };
+  // [NEW] 参加者番号の訂正（研究者がコンソールから使う。画面には訂正の操作を置かない）
+  window.__icsSetParticipantId = (v) => {
+    const id = normalizeParticipantId(v);
+    if (!PARTICIPANT_ID_RE.test(id)) { console.warn("[ICS] 参加者番号は P と3桁の数字で指定してください（例：P002）"); return false; }
+    const from = state.participantId;
+    state.participantId = id;
+    logOp("PARTICIPANT_ID_CHANGED", { from, to: id });
+    renderParticipantBadge();
+    saveToLocalStorage();
+    return true;
+  };
 
   window.addEventListener("blur", () => { logOp("WINDOW_BLUR", {}); });
   window.addEventListener("focus", () => { logOp("WINDOW_FOCUS", {}); });
