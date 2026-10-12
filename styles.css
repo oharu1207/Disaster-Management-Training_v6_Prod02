@@ -2008,3 +2008,40 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
   .cmp-step-explain { margin-bottom: 40px; }
   .cmp-more-hint { bottom: -8px; margin: 4px -12px -8px; }
 }
+
+/* ================================================================
+   [NEW 補修] 比較画面のマップ拡大表示
+   ================================================================ */
+.compare-col-header .cmp-zoom-btn {
+  margin-left: 10px; margin-right: auto;
+  padding: 3px 10px; font-size: 12px; font-weight: 700;
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border2); border-radius: 7px;
+}
+.compare-col-header .cmp-zoom-btn:hover { border-color: var(--accent); }
+.cmp-zoom-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(4, 8, 16, 0.72);
+  display: flex; align-items: center; justify-content: center;
+}
+.cmp-zoom-overlay[hidden] { display: none; }
+.cmp-zoom-box {
+  width: 90vw; height: 90vh; display: flex; flex-direction: column;
+  background: var(--bg); border: 1px solid var(--border2); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.cmp-zoom-head {
+  display: flex; align-items: flex-start; gap: 12px; padding: 8px 12px;
+  background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.cmp-zoom-headtext { flex: 1; min-width: 0; }
+.cmp-zoom-title { font-size: 13px; font-weight: 800; color: var(--text); }
+.cmp-zoom-focus { font-size: 11.5px; line-height: 1.5; color: var(--text-dim); white-space: pre-line; margin-top: 2px; }
+.cmp-zoom-close {
+  flex-shrink: 0; width: 32px; height: 32px; padding: 0; font-size: 20px; line-height: 1;
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border2); border-radius: 8px;
+}
+.cmp-zoom-close:hover { border-color: var(--accent); }
+.cmp-zoom-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.cmp-zoom-stage { position: relative; }
+.cmp-zoom-stage .phase-layer-bands { position: absolute; inset: 0; }
+.cmp-zoom-stage .phase-canvas, .cmp-zoom-stage .phase-svg-layer { position: absolute; left: 0; top: 0; right: auto; bottom: auto; }

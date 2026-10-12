@@ -791,6 +791,23 @@
     }
   }
 
+  // [NEW 補修] 端末情報（INIT・復元・リサイズ時に記録。エクスポートには最後の値を deviceInfo として出す）
+  let _lastDeviceInfo = null;
+  function logDeviceInfo(reason) {
+    _lastDeviceInfo = {
+      innerWidth: window.innerWidth, innerHeight: window.innerHeight,
+      screenWidth: window.screen?.width ?? null, screenHeight: window.screen?.height ?? null,
+      devicePixelRatio: window.devicePixelRatio ?? null, userAgent: navigator.userAgent,
+      reason, recordedAt: new Date().toISOString(),
+    };
+    logOp("DEVICE_INFO", _lastDeviceInfo);
+  }
+  let _deviceInfoTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(_deviceInfoTimer);
+    _deviceInfoTimer = setTimeout(() => logDeviceInfo("resize"), 1000);
+  });
+
   function logOp(type, detail = {}) {
     state.operationLog.push({
       ts: new Date().toISOString(),
@@ -1286,6 +1303,37 @@
       // fall-through → 共通 MAP_PHASE_CONFIG ハンドラが loadPhaseData("acute") / renderAll / _logPhaseTransition を実行
     }
 
+    // ── 関係付与（4）へ戻るとき ──────────────────────────────────── [NEW 補修]
+    // 5（差分提示）の作業コピー acuteRevised があれば、復旧期（15→⑨）と同じく破棄して、
+    // 次に5へ入ったときにその時点の acute から作り直す。5での編集があるときだけ確認する。
+    // ボタン・ヘッダーのどちらから戻っても同じ扱い。復元中・終了後の見直しでは何もしない。
+    if (p === PHASE.ACUTE_EDGE_MAP && phaseData.acuteRevised && phaseData.acuteRevised.nodes != null &&
+        !_restoringFromStorage && !state.sessionEnded) {
+      const initFp = phaseData.acuteRevisedInitFingerprint
+        ?? (phaseData.acuteBaseline ? p6Fingerprint(phaseData.acuteBaseline) : null);
+      const hadEdits = initFp != null && p6Fingerprint(phaseData.acuteRevised) !== initFp;
+      if (hadEdits && !confirm("マップ作成に戻ると、差分提示での修正は破棄されます。戻りますか？")) {
+        logOp("ACUTE_BACK_CANCELLED", { fromPhase: prevPhase });
+        state.phase = prevPhase;
+        activatePhaseView(prevPhase);
+        updatePhaseSteps(prevPhase);
+        return;
+      }
+      logOp("ACUTE_REVISED_DISCARDED", {
+        reason: "returned_to_edge_map", hadEdits, fromPhase: prevPhase,
+        discardedNodeCount: phaseData.acuteRevised.nodes.length,
+        discardedEdgeCount: (phaseData.acuteRevised.edges || []).length,
+      });
+      phaseData.acuteRevised = null;
+      phaseData.acuteRevisedDiscarded = true;
+      phaseData.acuteRevisedInitFingerprint = null;
+      state.acuteScoreRevised = null;
+      // 次に5へ入ったとき、4で引いた矢印を対象にウォークスルーを作り直すため、採点もやり直す
+      state.acuteScore = null;
+      _dwReachedComplete = false;
+      walkthroughReached.acuteEdge = false; // 完走記録も下ろす（復旧期の戻りと同じ規則）
+    }
+
     // ── 差分提示（急性期） ────────────────────────────────────────── [NEW]
     // bundleループに編集させるため、共通マップハンドラに fall-through する。
     if (p === PHASE.ACUTE_DIFF) {
@@ -1296,6 +1344,18 @@
         activatePhaseView(prevPhase);
         updatePhaseSteps(prevPhase);
         return;
+      }
+      // [NEW 補修] 矢印0本のまま初めて5へ進むとき（acuteBaseline がまだない）は確認する
+      if (!phaseData.acuteBaseline && (phaseData.acute.edges || []).length === 0 &&
+          !_restoringFromStorage && !state.sessionEnded) {
+        const ok = confirmIncompleteAdvance("ACUTE_EDGES_EMPTY", prevPhase, p,
+          "矢印が1本も引かれていません。このまま進むと、この時点のマップが最初の回答として記録されます。進みますか？");
+        if (!ok) {
+          state.phase = prevPhase;
+          activatePhaseView(prevPhase);
+          updatePhaseSteps(prevPhase);
+          return;
+        }
       }
       // 再入場時は再採点しない（ACUTE_REVISED_SCORED.before の基準＝支援なし初回完了時点の
       // 採点結果を汚さないため。既存ガードのまま維持）。
@@ -1831,6 +1891,7 @@
       const _block = e => {
         if (!state.sessionEnded) return;
         if (e.target.closest && e.target.closest(".app-header")) return;
+        if (_zoom && e.key === "Escape") return; // [NEW 補修] 拡大表示を Esc で閉じる操作は許可
         e.preventDefault(); e.stopImmediatePropagation();
       };
       window.addEventListener("keydown", _block, true);
@@ -1844,6 +1905,7 @@
         const t = e.target;
         if (!t.closest) return;
         if (t.closest(".app-header") || t.closest("#phase-end")) return;
+        if (t.closest(".cmp-zoom-btn")) return; // [NEW 補修] 拡大表示は見直し中も開ける（表示のみ）
         if (!t.closest(".phase-view")) return;
         e.preventDefault(); e.stopImmediatePropagation();
       }, true));
@@ -2926,6 +2988,7 @@
       atSessionEnd:   state.sessionEndSnapshot,
       segmentTimes:   buildSegmentTimes(), // [NEW flow-v4 段階2] 区間ごとの累積滞在時間
       compareStudy:   phaseData.compareStudy, // [NEW stage3] 比較・分析の原則選択と解説の閲覧
+      deviceInfo:     _lastDeviceInfo,         // [NEW 補修] 最後に記録した端末情報
     };
   }
 
@@ -3153,6 +3216,10 @@
           if (state.sessionEnded) applySessionLock(); else releaseSessionLock(); // [NEW flow-v4]
           // [NEW stage3] 比較学習の記録（旧形式には無いため初期値で補う。旧設問の回答は各分岐で従来どおり復元）
           phaseData.compareStudy = normalizeCompareStudy(obj.compareStudy);
+          // [NEW 補修] 5の作業コピーの管理情報はセッション内のもの。インポートでは初期化する
+          // （作成時の指紋がない場合、編集の有無は acuteBaseline との比較で判定する）
+          phaseData.acuteRevisedDiscarded = false;
+          phaseData.acuteRevisedInitFingerprint = null;
           // [NEW 段階4] 準備画面の追加（旧形式には無いため [] で補う）
           window.phase5Data.additions = normalizePrepAdditions(obj.phase5Data?.additions);
           // 各分岐では additions の復元前にシグネチャを記録しているため、追加を含めて記録し直す
@@ -3452,16 +3519,24 @@
   // （冪等）。acuteBaseline が未凍結の状態で呼ばれることはない（呼び出し順序で保証）。
   function ensureAcuteRevisedInitialized() {
     if (phaseData.acuteRevised && phaseData.acuteRevised.nodes != null) return;
+    // [CHANGED 補修] 4（関係付与）へ戻って破棄された後は、その時点の acute から作り直す
+    // （acuteBaseline＝測定の固定点は初回のまま変更しない）。
+    const rebuilt = phaseData.acuteRevisedDiscarded === true;
+    const src = rebuilt ? phaseData.acute : phaseData.acuteBaseline;
     phaseData.acuteRevised = JSON.parse(JSON.stringify({
-      nodes: phaseData.acuteBaseline.nodes,
-      edges: phaseData.acuteBaseline.edges,
+      nodes: src.nodes,
+      edges: src.edges,
       answers: phaseData.acute.answers,
       selectedNodeId: null,
       selectedEdgeId: null,
     }));
+    phaseData.acuteRevisedDiscarded = false;
+    // 5での編集の有無を判定するため、作成直後の指紋を記録する
+    phaseData.acuteRevisedInitFingerprint = p6Fingerprint(phaseData.acuteRevised);
     logOp("ACUTE_REVISED_INIT", {
       nodeCount: phaseData.acuteRevised.nodes.length,
       edgeCount: phaseData.acuteRevised.edges.length,
+      ...(rebuilt ? { rebuilt: true } : {}),
     });
   }
 
@@ -7155,7 +7230,8 @@
   }
 
   // 注目箇所の強調（クラスの付け外しのみ。ノード・エッジのデータは変更しない）
-  function applyCompareFocus(caseDef, side, nodes, edges, canvasEl, svgEl) {
+  // opts.silent：拡大表示など、同じ強調を表示だけするとき（COMPARE_FOCUS_SHOWN・欠落の案内・滞在記録を更新しない）
+  function applyCompareFocus(caseDef, side, nodes, edges, canvasEl, svgEl, opts = {}) {
     if (!caseDef || !canvasEl || !svgEl) return null;
     canvasEl.querySelectorAll(".node").forEach(el => el.classList.remove("cmp-focus", "cmp-secondary", "cmp-dim"));
     svgEl.querySelectorAll("g[data-from]").forEach(g => g.classList.remove("cmp-focus", "cmp-secondary", "cmp-dim"));
@@ -7215,7 +7291,7 @@
 
     // 4. 学習者側の欠落の案内
     const phase = Number(Object.keys(COMPARE_CASES).find(k => COMPARE_CASES[k] === caseDef));
-    if (side === "learner") {
+    if (side === "learner" && !opts.silent) {
       const note = $(`${COMPARE_PREFIX[phase]}-missingNote`);
       if (note) {
         note.textContent = nodesMissing.length > 0
@@ -7233,8 +7309,146 @@
     const detail = { caseId: caseDef.caseId, side, nodesMatched, nodesMissing, nodesAmbiguous, edgesMatched, edgesMissing,
                      secondaryNodesMatched, secondaryNodesMissing, secondaryNodesAmbiguous,
                      secondaryEdgesMatched, secondaryEdgesMissing };
-    logOp("COMPARE_FOCUS_SHOWN", detail);
+    if (!opts.silent) logOp("COMPARE_FOCUS_SHOWN", detail);
     return detail;
+  }
+
+  // ================================================================
+  // [NEW 補修] 比較画面のマップ拡大表示（表示のみ。区間タイマー・未完了判定・compareStudy に影響させない）
+  // ノード名（14px）が実効 12px 以上になるよう縮小率に下限を設け、収まらない分はオーバーレイ内でスクロールする。
+  // ================================================================
+  const ZOOM_MIN_SCALE = 12 / 14;
+  const ZOOM_MAX_SCALE = 1.25;
+  let _zoom = null; // { phase, side, caseId, openedAt }
+
+  const zoomColumnIds = (phase, side) => {
+    const isA = phase === PHASE.ACUTE_COMPARE;
+    if (side === "learner") return isA ? { col: "compareColIdeal",  svg: "svgLayer-ideal",  suf: "-ideal" }
+                                       : { col: "rcCompareColIdeal", svg: "svgLayer-rcIdeal", suf: "-rcIdeal" };
+    return isA ? { col: "compareColActual",  svg: "svgLayer-actual",  suf: "-actual" }
+               : { col: "rcCompareColActual", svg: "svgLayer-rcActual", suf: "-rcActual" };
+  };
+
+  // 元のキャンバスの高さを、ノードの y と層（getLayerIdFromY と同じ 25% 刻み）から推定する（帯とノードの位置を揃えるため）
+  function estimateCanvasHeight(nodes) {
+    const ys = nodes.map(n => n.y).filter(Number.isFinite);
+    const maxY = ys.length ? Math.max(...ys) : 600;
+    let lo = maxY + 60, hi = Infinity;
+    for (const n of nodes) {
+      const L = n.layerId;
+      if (![1, 2, 3, 4].includes(L) || !Number.isFinite(n.y)) continue;
+      lo = Math.max(lo, (4 * n.y) / L);
+      if (L > 1) hi = Math.min(hi, (4 * n.y) / (L - 1));
+    }
+    if (lo <= hi) return Math.ceil(lo + 1);
+    return Math.ceil(maxY + 80);
+  }
+
+  function ensureZoomOverlay() {
+    let ov = $("cmpZoomOverlay");
+    if (ov) return ov;
+    ov = document.createElement("div");
+    ov.id = "cmpZoomOverlay";
+    ov.className = "cmp-zoom-overlay";
+    ov.hidden = true;
+    ov.innerHTML = `
+      <div class="cmp-zoom-box" role="dialog" aria-modal="true">
+        <div class="cmp-zoom-head">
+          <div class="cmp-zoom-headtext">
+            <div class="cmp-zoom-title" id="cmpZoomTitle"></div>
+            <div class="cmp-zoom-focus" id="cmpZoomFocus"></div>
+          </div>
+          <button type="button" class="cmp-zoom-close" id="cmpZoomClose" aria-label="閉じる">×</button>
+        </div>
+        <div class="cmp-zoom-scroll" id="cmpZoomScroll">
+          <div class="cmp-zoom-stage" id="cmpZoomStage">
+            <div class="phase-layer-bands" id="cmpZoomBands"></div>
+            <svg id="svgLayer-zoom" class="phase-svg-layer"></svg>
+            <div id="canvas-zoom" class="phase-canvas"></div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener("click", e => { if (e.target === ov) closeCompareZoom("outside"); });
+    $("cmpZoomClose").addEventListener("click", () => closeCompareZoom("button"));
+    document.addEventListener("keydown", e => {
+      if (_zoom && e.key === "Escape") { e.preventDefault(); closeCompareZoom("esc"); }
+    });
+    return ov;
+  }
+
+  function openCompareZoom(phase, side) {
+    const c = COMPARE_CASES[phase];
+    if (!c || _zoom || state.phase !== phase) return;
+    const isA = phase === PHASE.ACUTE_COMPARE;
+    let nodes, edges;
+    if (side === "learner") {
+      const src = compareLearnerSource(phase);
+      nodes = src.nodes; edges = src.edges;
+    } else {
+      const st = isA ? mapLoadStatus.actualAcute : mapLoadStatus.actualRecovery;
+      if (st !== "ready") { showToast("実際の組織構造マップを表示できません", 2500); return; }
+      const m = isA ? window.actualMapAcute : window.actualMapRecovery;
+      nodes = m.nodes; edges = m.edges;
+    }
+    const ids = zoomColumnIds(phase, side);
+    const ov = ensureZoomOverlay();
+    $("cmpZoomTitle").textContent = document.querySelector(`#${ids.col} .compare-col-title`)?.textContent || "";
+    $("cmpZoomFocus").textContent = c.focusText;
+    // 矢印の marker 定義と層の帯は、元のカラムから複製する（marker の id は -zoom に付け替え）
+    const svg = $("svgLayer-zoom"), canvas = $("canvas-zoom"), stage = $("cmpZoomStage"), scroller = $("cmpZoomScroll");
+    svg.innerHTML = "";
+    const defs = $(ids.svg)?.querySelector("defs")?.cloneNode(true);
+    if (defs) {
+      defs.querySelectorAll("[id]").forEach(m => { m.id = m.id.replace(ids.suf, "-zoom"); });
+      svg.appendChild(defs);
+    }
+    const bands = document.querySelector(`#${ids.col} .phase-layer-bands`);
+    $("cmpZoomBands").innerHTML = bands ? bands.innerHTML : "";
+    ov.hidden = false;
+    document.body.classList.add("cmp-zoom-open");
+    _zoom = { phase, side, caseId: c.caseId, openedAt: Date.now() };
+    logOp("COMPARE_MAP_ZOOM_OPEN", { caseId: c.caseId, side });
+
+    requestAnimationFrame(() => {
+      const W0 = Math.max(...nodes.map(n => n.x || 0), 0) + 200;
+      const H0 = estimateCanvasHeight(nodes);
+      const view = scroller.getBoundingClientRect();
+      const fit = Math.min(view.width / W0, view.height / H0);
+      const sc = Math.max(ZOOM_MIN_SCALE, Math.min(fit, ZOOM_MAX_SCALE));
+      stage.style.width  = Math.ceil(W0 * sc) + "px";
+      stage.style.height = Math.ceil(H0 * sc) + "px";
+      for (const el of [canvas, svg]) { el.style.width = W0 + "px"; el.style.height = H0 + "px"; }
+      renderReadOnlyMap(nodes, edges, canvas, svg, scroller, null, "-zoom", null, false, null, {
+        disableDblClickHighlight: true,
+        onRendered: () => {
+          for (const el of [canvas, svg]) { el.style.transformOrigin = "top left"; el.style.transform = `scale(${sc})`; }
+          applyCompareFocus(c, side, nodes, edges, canvas, svg, { silent: true });
+          // 注目箇所が中央に来るようにスクロールする
+          const fs = [...canvas.querySelectorAll(".node.cmp-focus")];
+          if (fs.length) {
+            const xs = fs.map(n => n.offsetLeft + n.offsetWidth / 2), ys = fs.map(n => n.offsetTop + n.offsetHeight / 2);
+            const cx = (Math.min(...xs) + Math.max(...xs)) / 2 * sc, cy = (Math.min(...ys) + Math.max(...ys)) / 2 * sc;
+            scroller.scrollLeft = Math.max(0, cx - scroller.clientWidth / 2);
+            scroller.scrollTop  = Math.max(0, cy - scroller.clientHeight / 2);
+          }
+          stage.dataset.scale = String(sc);
+        },
+      });
+    });
+  }
+
+  function closeCompareZoom(via = "button") {
+    if (!_zoom) return;
+    const z = _zoom;
+    _zoom = null;
+    const ov = $("cmpZoomOverlay");
+    if (ov) ov.hidden = true;
+    document.body.classList.remove("cmp-zoom-open");
+    const canvas = $("canvas-zoom"), svg = $("svgLayer-zoom");
+    if (canvas) canvas.innerHTML = "";
+    if (svg) svg.innerHTML = "";
+    logOp("COMPARE_MAP_ZOOM_CLOSE", { caseId: z.caseId, side: z.side, durationMs: Date.now() - z.openedAt, via });
   }
 
   // 比較画面の両カラム（学習者マップ・実際マップ）を描画し、onRendered で注目箇所の強調を適用する。
@@ -7913,6 +8127,11 @@
   function wireEvents() {
     $("btnExport")?.addEventListener("click", exportJSON);
     wireCompareStudy(); // [NEW stage3]
+    // [NEW 補修] 比較画面のマップ拡大表示
+    document.querySelectorAll(".cmp-zoom-btn").forEach(btn => btn.addEventListener("click", e => {
+      e.stopPropagation();
+      openCompareZoom(Number(btn.dataset.zoomPhase), btn.dataset.zoomSide);
+    }));
     // [NEW 段階4] 準備画面：選択中の追加ノードを Delete / Backspace で追加から外す
     document.addEventListener("keydown", e => {
       if (state.phase !== PHASE.RECOVERY_PREP || !_prepSelectedLabel) return;
@@ -9551,6 +9770,7 @@
       flowVersion: FLOW_VERSION, hintTextsVersion: HINT_TEXTS_VERSION,
       scoringRuleVersion: window.__ICS_SCORING__?.version ?? null, // [ADDED axis4]
     });
+    logDeviceInfo("init"); // [NEW 補修]
     idealAcuteLoadPromise = loadIdealMapAcute();
     idealRecoveryLoadPromise = loadIdealMapRecovery();
     loadActualMapAcute();
@@ -9575,6 +9795,7 @@
         state.sessionEndedAt     = saved.sessionEndedAt     ?? null;
         state.sessionEndSnapshot = saved.sessionEndSnapshot ?? null;
         if (state.sessionEnded) applySessionLock();
+        logDeviceInfo("restore"); // [NEW 補修]
         if (saved.phaseStartTime) {
           logOp("RESUMED_FROM_STORAGE", {
             previousPhaseStartTime: saved.phaseStartTime,
