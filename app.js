@@ -424,7 +424,9 @@
   // actualEdges は actual_map_*.json 上で存在・向き・ラベルを確認できたものだけを登録している。
   const COMPARE_CASES = Object.freeze({
     [PHASE.ACUTE_COMPARE]: {
-      caseId: "acute-prefecture-direct", caseVersion: "v1-2026-10-11",
+      caseId: "acute-prefecture-direct", caseVersion: "v2-2026-10-12",
+      // [NEW] 原則の選択肢（この順に表示）
+      principles: ["Unity of Command", "Span of Control", "Communications"],
       focusNodes: ["県庁", "C県A保健所", "市町村保健センター", "DWAT", "JRAT"],
       learnerEdges: [
         { from: "県庁",               to: "C県A保健所",         label: "指示命令" },
@@ -445,26 +447,30 @@
       explanation: "実際の組織構造で問題になったのは、県庁と応援チームの間で決まった活動が、現地の調整役である保健所に伝わらなかったことです。その結果、保健所が現場ですでに取り組んでいた活動と重なることがありました。最も関係が深い原則は**コミュニケーション**です。\n\nまた、現地では保健所の調整と県庁からの直接の指示が並ぶため、**指揮一元化**の観点からも注意が必要です。ただし、派遣元の県庁が応援チームとやり取りすること自体は行政上必要な場合もあり、それだけで原則違反とは言えません。問題は、その内容が現地の調整の場に共有されなかった点です。\n\nその後、保健所は福祉系の応援チームとの会議を開き、情報共有と活動の重複回避を図りました。基準となる組織構造で応援チームを市町村・保健所の調整のもとに置いているのは、こうした情報の集約点を現地に置くためです。",
     },
     [PHASE.RECOVERY_COMPARE]: {
-      caseId: "recovery-municipal-coordination", caseVersion: "v2-2026-10-11",
-      focusNodes: ["C県A保健所", "市町村保健センター", "JRAT", "仮設住宅"],
-      // [NEW v2] 補助の強調対象（欠けていても案内は出さない。記録のみ）
-      secondaryNodes: ["DWAT", "DCAT"],
+      caseId: "recovery-municipal-coordination", caseVersion: "v3-2026-10-12",
+      // [NEW] 原則の選択肢（この順に表示。復旧期はコミュニケーションの代わりに組立型組織）
+      principles: ["Unity of Command", "Span of Control", "Modular Organization"],
+      // [CHANGED v3] DWAT・DCAT を JRAT と同じ対象として強調する
+      focusNodes: ["C県A保健所", "市町村保健センター", "JRAT", "DWAT", "DCAT", "仮設住宅"],
+      // 補助の強調対象（欠けていても案内は出さない。記録のみ）。v3 では対象なし（仕組みは残す）
+      secondaryNodes: [],
+      // DWAT・DCAT→仮設住宅（支援）は ideal/actual のどちらの JSON にも存在しないため登録しない
       learnerEdges: [
         { from: "市町村保健センター", to: "JRAT",               label: "連携協力", undirected: true },
         { from: "JRAT",               to: "仮設住宅",           label: "支援" },
         { from: "C県A保健所",         to: "市町村保健センター", label: "連携協力", undirected: true, role: "secondary" },
-        { from: "市町村保健センター", to: "DWAT",               label: "連携協力", undirected: true, role: "secondary" },
-        { from: "市町村保健センター", to: "DCAT",               label: "連携協力", undirected: true, role: "secondary" },
+        { from: "市町村保健センター", to: "DWAT",               label: "連携協力", undirected: true },
+        { from: "市町村保健センター", to: "DCAT",               label: "連携協力", undirected: true },
       ],
       actualEdges: [
         { from: "C県A保健所", to: "JRAT",               label: "連携協力", undirected: true },
         { from: "JRAT",       to: "仮設住宅",           label: "支援" },
         { from: "C県A保健所", to: "市町村保健センター", label: "連携協力", undirected: true, role: "secondary" },
-        { from: "C県A保健所", to: "DWAT",               label: "連携協力", undirected: true, role: "secondary" },
-        { from: "C県A保健所", to: "DCAT",               label: "連携協力", undirected: true, role: "secondary" },
+        { from: "C県A保健所", to: "DWAT",               label: "連携協力", undirected: true },
+        { from: "C県A保健所", to: "DCAT",               label: "連携協力", undirected: true },
       ],
-      focusText: "保健所・市町村保健センター・応援チーム（JRATなど）の関係を比べてください。\n復旧期には、避難所での活動に加えて、仮設住宅や在宅での継続的な生活支援が中心になっていきます。",
-      explanation: "基準となる組織構造では、復旧期の応援チームの連携相手は市町村保健センターです。一方、実際の組織構造では、保健所が応援チームと直接連携しています。\n\n実際の対応でも、保健所は福祉系の応援チームを集めた会議を開き、活動の重複を避けるための調整を担っていました。しかし、会議で扱う内容がB村の課題中心になってきたため、途中から会議の進行をB村に引き継ぎました。実際の組織構造は、この移行が進む前の姿として見ることができます。\n\n基準となる組織構造が市町村を調整の中心に置くのは、**統制範囲**の考え方によるものです。復旧期の支援は、仮設住宅や在宅など地域ごとに細かく、長く続きます。保健所が管内全域の応援チームを直接束ね続けると、調整が保健所に集中し、一つの組織が無理なく調整できる範囲を超えてしまいます。地域の状況をよく知る市町村が身近な調整を担い、保健所は市町村を支える役割に移ることで、それぞれの調整の範囲が適切に保たれます。\n\nただし、移行は一度に行うものではありません。B村では、他県からの中長期の応援が入るまでの間、県の保健師が村に常駐して統括保健師を支え、その後、支援を保健所に移しました。常駐の終了後も、保健所は村の求めに応じて、仮設住宅の健康調査などを支援しています。市町村の体制が回復する状況を見ながら、段階的に調整の中心を移していくことが大切です。",
+      focusText: "保健所・市町村保健センター・応援チーム（JRAT・DWAT・DCAT）の関係を比べてください。\n復旧期には、避難所での活動に加えて、仮設住宅や在宅での継続的な生活支援が中心になっていきます。",
+      explanation: "基準となる組織構造では、復旧期の応援チーム（JRAT・DWAT・DCAT）の連携相手は市町村保健センターです。一方、実際の組織構造では、保健所が応援チームと直接連携しています。\n\n実際の対応でも、保健所は福祉系の応援チームとの会議を開き、活動の調整を担っていました。その後、会議の内容がB村の課題中心になったため、進行をB村に引き継いでいます。実際の組織構造は、この移行が進む前の姿といえます。\n\n基準となる組織構造が市町村を調整の中心に置くのは、**組立型組織**の考え方によるものです。組織は固定せず、状況の変化に合わせて必要な機能と担い手を組み替えます。復旧期の支援は仮設住宅や在宅など地域ごとに細かく、長く続くため、身近な調整は地域をよく知る市町村が担い、保健所は市町村を支える役割に移ります。また、保健所が管内全域の応援チームを直接束ね続けると調整が集中する点で、**統制範囲**とも関係します。\n\n組み替えは段階的に行います。B村では、他県からの中長期の応援が入るまで県の保健師が村に常駐して統括保健師を支え、その後、支援を保健所に移しました。常駐終了後も、保健所は村の求めに応じて仮設住宅の健康調査などを支援しています。",
     },
   });
   // 比較画面 → compareStudy のキー / DOM の id 接頭辞
@@ -7248,13 +7254,14 @@
     "Unity of Command": "指揮一元化",
     "Span of Control":  "統制範囲",
     "Communications":   "コミュニケーション",
+    "Modular Organization": "組立型組織", // [NEW] 復旧期の比較・分析の選択肢
     "該当なし":          "3原則のいずれにも該当しない",
   };
 
   // ================================================================
   // [NEW stage3] 比較・分析フェーズ：注目箇所の自動強調・原則選択・共通解説
   // ================================================================
-  const COMPARE_PRINCIPLES = ["Unity of Command", "Span of Control", "Communications"]; // 「該当なし」は置かない
+  // [CHANGED] 原則の選択肢はケースごと（COMPARE_CASES[phase].principles）。共通の COMPARE_PRINCIPLES は廃止
   const COMPARE_REASON_JA = {
     principle_unselected: "ICS原則が選ばれていません",
     explanation_unopened: "解説をまだ読んでいません",
@@ -7659,7 +7666,14 @@
   function enterCompareCase(phase, prevPhase, sourceMap) {
     const c = COMPARE_CASES[phase];
     if (prevPhase !== phase) {
-      ensureCompareStudy(phase);
+      const st = ensureCompareStudy(phase);
+      // [NEW] 保存済みの原則がこのケースの選択肢にない（例：旧版の復旧期で "Communications"）場合は未選択に戻す。
+      // principleBeforeExplanation・explanationOpened は記録として残す。
+      if (st.principle && !c.principles.includes(st.principle)) {
+        logOp("COMPARE_PRINCIPLE_INVALID", { caseId: c.caseId, savedPrinciple: st.principle });
+        st.principle = null;
+        saveToLocalStorage();
+      }
       logOp("COMPARE_CASE_ENTER", { phase, caseId: c.caseId, caseVersion: c.caseVersion, sourceMap });
     }
     renderComparePanel(phase);
@@ -7671,7 +7685,7 @@
       const phase = Number(phaseStr);
       const box = $(`${px}-radios`);
       if (box) {
-        box.innerHTML = COMPARE_PRINCIPLES.map(v =>
+        box.innerHTML = COMPARE_CASES[phase].principles.map(v =>
           `<label class="cmp-radio-item"><input type="radio" name="${px}-principle" value="${esc(v)}">` +
           `<span class="cmp-radio-ja">${esc(ICS_PRINCIPLE_JA[v])}</span><span class="cmp-radio-sub cmp-radio-en">${esc(v)}</span></label>`).join("");
         box.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", () => {
