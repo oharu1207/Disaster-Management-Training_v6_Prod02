@@ -20,9 +20,9 @@
     <div class="phase-track">
       <div class="phase-step active" data-phase="0"><span class="step-num">1</span><span class="step-label">オリエン<br>テーション</span></div>
       <span class="phase-arrow">›</span>
-      <div class="phase-step" data-phase="1"><span class="step-num">2</span><span class="step-label">レイヤー配置<br>（急性期）</span></div>
+      <div class="phase-step" data-phase="1"><span class="step-num">2</span><span class="step-label">層配置<br>（急性期）</span></div>
       <span class="phase-arrow">›</span>
-      <div class="phase-step" data-phase="12"><span class="step-num">3</span><span class="step-label">差分提示<br>（レイヤー）</span></div>
+      <div class="phase-step" data-phase="12"><span class="step-num">3</span><span class="step-label">差分提示<br>（層）</span></div>
       <span class="phase-arrow">›</span>
       <div class="phase-step" data-phase="14"><span class="step-num">4</span><span class="step-label">関係付与<br>（急性期）</span></div>
       <span class="phase-arrow">›</span>
@@ -34,9 +34,9 @@
       <span class="phase-arrow">›</span>
       <div class="phase-step" data-phase="4"><span class="step-num">8</span><span class="step-label">復旧期<br>準備</span></div>
       <span class="phase-arrow">›</span>
-      <div class="phase-step" data-phase="5"><span class="step-num">9</span><span class="step-label">復旧期<br>マップ</span></div>
+      <div class="phase-step" data-phase="5"><span class="step-num">9</span><span class="step-label">復旧期<br>組織構造</span></div>
       <span class="phase-arrow">›</span>
-      <div class="phase-step" data-phase="15"><span class="step-num">10</span><span class="step-label">差分提示<br>（レイヤー）</span></div>
+      <div class="phase-step" data-phase="15"><span class="step-num">10</span><span class="step-label">差分提示<br>（層）</span></div>
       <span class="phase-arrow">›</span>
       <div class="phase-step" data-phase="16"><span class="step-num">11</span><span class="step-label">差分提示<br>（関係付与）</span></div>
       <span class="phase-arrow">›</span>
@@ -123,7 +123,7 @@
 
     <div class="sb-block">
       <div class="scenario-badge">急性期</div>
-      <div style="font-weight:700;font-size:14px;line-height:1.5;margin-top:7px;">医療救護活動の組織構造を<br>コンセプトマップで表現せよ</div>
+      <div style="font-weight:700;font-size:14px;line-height:1.5;margin-top:7px;">医療救護活動の基準となる<br>組織構造を作成してください</div>
     </div>
 
     <!-- PALETTE -->
@@ -148,10 +148,10 @@
       </div>
       <!-- 2行目: ノード/矢印カウント + ツールチップトグル + 矢印モードヒント -->
       <div class="acute-tutorial-row2">
-        <span class="canvas-stat" id="canvasStat-acute">ノード: 0 ／ 矢印: 0</span>
+        <span class="canvas-stat" id="canvasStat-acute">組織: 0 ／ 矢印: 0</span>
         <button id="acuteTooltipToggle" class="btn-tooltip-toggle">💡 組織説明: ON</button>
         <div id="arrowModeHint-acute" class="arrow-mode-hint" style="display:none;">
-          ✦ 矢印モード ― 接続先のノードをクリック（Escでキャンセル）
+          ✦ 矢印モード ― 接続先の組織をクリック（Escでキャンセル）
         </div>
       </div>
     </div>
@@ -161,7 +161,7 @@
       <div id="layerBands-acute" class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -233,24 +233,24 @@
   <div class="canvas-col">
     <div class="canvas-toolbar acute-tutorial-bar">
       <div class="acute-tutorial-row">
-        <div id="diffTitle" class="acute-tutorial-text">あなたのマップの採点結果 — 1件ずつ確認していきましょう</div>
+        <div id="diffTitle" class="acute-tutorial-text">差分提示（層）</div>
         <div class="acute-tutorial-btns">
-          <button id="btnDiffBack" class="btn-sub-phase">← マップ作成に戻る</button>
-          <button id="btnDiffNext" class="btn-sub-phase btn-sub-phase-primary">マップを修正する →</button>
+          <button id="btnDiffBack" class="btn-sub-phase">← 組織構造の作成に戻る</button>
+          <button id="btnDiffNext" class="btn-sub-phase btn-sub-phase-primary">組織構造を修正する →</button>
         </div>
       </div>
       <div class="acute-tutorial-row2">
-        <span class="canvas-stat" id="canvasStat-diff">ノード: 0 ／ 矢印: 0</span>
+        <span class="canvas-stat" id="canvasStat-diff">組織: 0 ／ 矢印: 0</span>
       </div>
     </div>
     <div class="canvasWrap" id="canvasWrap-diff">
       <div id="arrowModeHint-diff" class="arrow-mode-hint arrow-mode-hint-overlay" style="display:none;">
-        ✦ 矢印モード ― 接続先のノードをクリック（Escでキャンセル）
+        ✦ 矢印モード ― 接続先の組織をクリック（Escでキャンセル）
       </div>
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -287,7 +287,7 @@
 
     <div class="sb-block">
       <div class="scenario-badge" style="background:var(--teal,#3dcf8a);color:#0d1422;">修正フェーズ</div>
-      <div id="reviseHeading" style="font-weight:700;font-size:14px;line-height:1.5;margin-top:7px;">差分を参考に<br>マップを修正してください</div>
+      <div id="reviseHeading" style="font-weight:700;font-size:14px;line-height:1.5;margin-top:7px;">差分提示を参考に<br>組織構造を修正してください</div>
     </div>
 
     <!-- PALETTE（このフェーズではノード追加・削除不可のため非表示） -->
@@ -301,24 +301,24 @@
   <div class="canvas-col">
     <div class="canvas-toolbar acute-tutorial-bar">
       <div class="acute-tutorial-row">
-        <div class="acute-tutorial-text">差分提示の結果を参考に、マップを修正してください。修正が完了したら「比較へ進む」をクリックしてください。</div>
+        <div class="acute-tutorial-text">差分提示の結果を参考に、組織構造を修正してください。修正が完了したら「比較へ進む」をクリックしてください。</div>
         <div class="acute-tutorial-btns">
-          <button id="btnReviseBack" class="btn-sub-phase">← 差分を再確認</button>
+          <button id="btnReviseBack" class="btn-sub-phase">← 差分提示に戻る</button>
           <button id="btnReviseNext" class="btn-sub-phase btn-sub-phase-primary">修正完了 → 比較へ</button>
         </div>
       </div>
       <div class="acute-tutorial-row2">
-        <span class="canvas-stat" id="canvasStat-revise">ノード: 0 ／ 矢印: 0</span>
+        <span class="canvas-stat" id="canvasStat-revise">組織: 0 ／ 矢印: 0</span>
       </div>
     </div>
     <div class="canvasWrap" id="canvasWrap-revise">
       <div id="arrowModeHint-revise" class="arrow-mode-hint arrow-mode-hint-overlay" style="display:none;">
-        ✦ 矢印モード ― 接続先のノードをクリック（Escでキャンセル）
+        ✦ 矢印モード ― 接続先の組織をクリック（Escでキャンセル）
       </div>
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -355,15 +355,15 @@
   <!-- 左カラム：学習者の基準マップ -->
   <div class="compare-col" id="compareColIdeal">
     <div class="compare-col-header">
-      <span class="compare-col-title">📐 あなたの基準マップ</span>
+      <span class="compare-col-title">📐 あなたの組織構造（急性期）</span>
       <button type="button" class="cmp-zoom-btn" data-zoom-phase="2" data-zoom-side="learner">🔍 拡大</button>
-      <span class="compare-col-stat" id="canvasStat-ideal">ノード: 0 ／ 矢印: 0</span>
+      <span class="compare-col-stat" id="canvasStat-ideal">組織: 0 ／ 矢印: 0</span>
     </div>
     <div class="canvasWrap" id="canvasWrap-ideal">
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -393,15 +393,15 @@
   <!-- 右カラム：急性期実際マップ -->
   <div class="compare-col" id="compareColActual">
     <div class="compare-col-header">
-      <span class="compare-col-title">📋 急性期 実際マップ</span>
+      <span class="compare-col-title">📋 実際の組織構造（急性期）</span>
       <button type="button" class="cmp-zoom-btn" data-zoom-phase="2" data-zoom-side="actual">🔍 拡大</button>
-      <span class="compare-col-stat" id="canvasStat-actual">ノード: 0 ／ 矢印: 0</span>
+      <span class="compare-col-stat" id="canvasStat-actual">組織: 0 ／ 矢印: 0</span>
     </div>
     <div class="canvasWrap" id="canvasWrap-actual">
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -435,10 +435,10 @@
     <div class="compare-qa-inner">
       <div class="compare-qa-block">
         <label class="compare-qa-label">
-          問1．	報告書から作成した「実際の対応をもとに整理した組織構造」を見て，提示された「基準となる組織構造」と「実際の対応をもとに整理した組織構造」の最も重要と思う構造的差異を1つ挙げて説明せよ．
+          問1．	報告書から作成した「実際の組織構造」を見て，提示された「基準となる組織構造」と「実際の組織構造」の最も重要と思う構造的差異を1つ挙げて説明せよ．
         </label>
         <textarea id="p3q1Answer" rows="2"
-          placeholder="例）基準となる組織構造は…が存在するが，実際の対応をもとに整理した組織構造では…"></textarea>
+          placeholder="例）基準となる組織構造は…が存在するが，実際の組織構造では…"></textarea>
         <div class="char-count"><span id="p3q1CharCount">0</span> / 100 字</div>
       </div>
       <div class="compare-qa-block">
@@ -492,7 +492,7 @@
       </div>
     </div>
     <div class="compare-qa-btn-row">
-      <button id="btnCompareBack" class="btn-secondary">← マップ修正に戻る</button>
+      <button id="btnCompareBack" class="btn-secondary">← 組織構造の修正に戻る</button>
       <button id="btnToAcuteRecord" class="btn-primary">問3・4へ進む →</button>
     </div>
   </div>
@@ -543,22 +543,22 @@
       <div class="scenario-badge">復旧期 準備</div>
       <!-- [CHANGED 段階4] 削除と追加を一度に判断する説明に置き換え -->
       <div style="font-size:13px;line-height:1.6;margin-top:8px;color:#fff;">
-       急性期の基準となる組織体制から、復旧期には不要になるノードをクリックして選んでください。<br>
-       復旧期に加える必要があると考える組織があれば、下の「追加ノード一覧」から追加し、該当する層へドラッグしてください。
+       急性期の基準となる組織構造から、復旧期には不要になる組織をクリックして選んでください。<br>
+       復旧期に加える必要があると考える組織があれば、下の「追加候補の組織」から追加し、該当する層へドラッグしてください。
       </div>
     </div>
     <!-- [CHANGED 段階4] 上段：削除候補ノード（既存）／下段：追加ノード一覧（新設）。各段の中でスクロールする -->
     <div class="sb-block p5-split-block" id="p5RemovalBlock" style="flex:1;min-height:0;overflow-y:auto;">
-      <div class="sb-title">🗑 削除候補ノード</div>
+      <div class="sb-title">🗑 削除候補の組織</div>
       <div id="p5RemovalList"><span style="color:var(--text-muted);font-size:12px;">（まだ選択されていません）</span></div>
     </div>
     <div class="sb-block p5-split-block" id="p5AdditionBlock" style="flex:1;min-height:0;overflow-y:auto;">
-      <div class="sb-title">➕ 追加ノード一覧</div>
+      <div class="sb-title">➕ 追加候補の組織</div>
       <div class="palette" id="palette-p5add"></div>
     </div>
     <div class="sb-block">
       <button id="btnToPhase6" class="btn-primary full"
-              onclick="goToPhase6()">復旧期マップへ進む →</button>
+              onclick="goToPhase6()">復旧期の組織構造へ進む →</button>
     </div>
   </div><!-- /map-sidebar -->
 
@@ -566,7 +566,7 @@
   <div class="canvas-col">
     <div class="canvas-toolbar">
       <!-- [CHANGED 補修] 操作案内は件数表示（canvasStat-p5。描画時に「ノード: N ／ 矢印: M」で上書きされる）と別要素にする -->
-      <span class="canvas-stat p5-toolbar-hint" id="p5ToolbarHint">ノードをクリックして削除候補に選択／追加した組織はドラッグで層を決定</span>
+      <span class="canvas-stat p5-toolbar-hint" id="p5ToolbarHint">組織をクリックして削除候補に選択／追加した組織はドラッグで層を決定</span>
       <span class="canvas-stat" id="canvasStat-p5"></span>
       <button id="p5TooltipToggle" class="btn-tooltip-toggle">💡 組織説明: ON</button>
     </div>
@@ -575,7 +575,7 @@
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -617,7 +617,7 @@
       <div style="font-size:12px;color:#fff;margin-top:6px;">復旧期準備で選んだ削除と追加を反映した状態が初期配置です。矢印で関係を構築してください。</div>
     </div>
     <div class="sb-block" style="flex:1;min-height:0;display:flex;flex-direction:column;">
-      <div class="sb-title">🔧 追加可能なノード</div>
+      <div class="sb-title">🔧 追加できる組織</div>
       <div class="palette" id="palette-p6" style="flex:1;overflow-y:auto;"></div>
     </div>
     <div class="sb-block">
@@ -628,10 +628,10 @@
   <!-- CANVAS -->
   <div class="canvas-col">
     <div class="canvas-toolbar">
-      <span class="canvas-stat" id="canvasStat-p6">ノード: 0 ／ 矢印: 0</span>
+      <span class="canvas-stat" id="canvasStat-p6">組織: 0 ／ 矢印: 0</span>
       <button id="p6TooltipToggle" class="btn-tooltip-toggle">💡 組織説明: ON</button>
       <div id="arrowModeHint-p6" class="arrow-mode-hint" style="display:none;">
-        ✦ 矢印モード ― 接続先のノードをクリック（Escでキャンセル）
+        ✦ 矢印モード ― 接続先の組織をクリック（Escでキャンセル）
       </div>
     </div>
     <div id="p6NodeTooltip" class="acute-node-tooltip" style="display:none;"></div>
@@ -639,7 +639,7 @@
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -704,7 +704,7 @@
     <!-- パレット（フェーズ15のみ機能。RECOVERY_MAP と同一の RECOVERY_PALETTE_NODES：
          撤退候補を除外すると node_extra の可視化・測定が壊れるため除外しない：addendum B §6-3） -->
     <div class="sb-block" style="flex:0;min-height:0;">
-      <div class="sb-title">🔧 追加可能なノード</div>
+      <div class="sb-title">🔧 追加できる組織</div>
       <div class="palette" id="palette-rdiff" style="max-height:220px;overflow-y:auto;"></div>
     </div>
   </div><!-- /map-sidebar -->
@@ -713,24 +713,24 @@
   <div class="canvas-col">
     <div class="canvas-toolbar acute-tutorial-bar">
       <div class="acute-tutorial-row">
-        <div id="recoveryDiffTitle" class="acute-tutorial-text">あなたの復旧期マップの採点結果 — 1件ずつ確認していきましょう</div>
+        <div id="recoveryDiffTitle" class="acute-tutorial-text">差分提示（復旧期・層）</div>
         <div class="acute-tutorial-btns">
-          <button id="btnRecoveryDiffBack" class="btn-sub-phase">← 復旧期マップに戻る</button>
-          <button id="btnRecoveryDiffNext" class="btn-sub-phase btn-sub-phase-primary">確認完了 → 関係差分へ</button>
+          <button id="btnRecoveryDiffBack" class="btn-sub-phase">← 組織構造（復旧期）の作成に戻る</button>
+          <button id="btnRecoveryDiffNext" class="btn-sub-phase btn-sub-phase-primary">確認完了 → 差分提示（関係付与）へ</button>
         </div>
       </div>
       <div class="acute-tutorial-row2">
-        <span class="canvas-stat" id="canvasStat-rdiff">ノード: 0 ／ 矢印: 0</span>
+        <span class="canvas-stat" id="canvasStat-rdiff">組織: 0 ／ 矢印: 0</span>
       </div>
     </div>
     <div class="canvasWrap" id="canvasWrap-rdiff">
       <div id="arrowModeHint-rdiff" class="arrow-mode-hint arrow-mode-hint-overlay" style="display:none;">
-        ✦ 矢印モード ― 接続先のノードをクリック（Escでキャンセル）
+        ✦ 矢印モード ― 接続先の組織をクリック（Escでキャンセル）
       </div>
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -765,12 +765,12 @@
   <!-- 左カラム：学習者の復旧期マップ（⑧と同様） -->
   <div class="compare-col" id="tcCompareColRecovery">
     <div class="compare-col-header">
-      <span class="compare-col-title">📐 あなたの復旧期マップ</span>
-      <span class="compare-col-stat" id="canvasStat-tcRecovery">ノード: 0 ／ 矢印: 0</span>
+      <span class="compare-col-title">📐 あなたの組織構造（復旧期）</span>
+      <span class="compare-col-stat" id="canvasStat-tcRecovery">組織: 0 ／ 矢印: 0</span>
     </div>
     <div class="canvasWrap" id="canvasWrap-tcRecovery">
       <div class="phase-layer-bands">
-        <div class="layer-band" data-layer="1"><span class="layer-label">指揮 Command</span><span class="layer-concept">指示命令の起点</span></div>
+        <div class="layer-band" data-layer="1"><span class="layer-label">指揮 Command</span><span class="layer-concept">指揮命令の起点</span></div>
         <div class="layer-band" data-layer="2"><span class="layer-label">調整・統制 Section</span><span class="layer-concept">情報集約・組織間調整</span></div>
         <div class="layer-band" data-layer="3"><span class="layer-label">実働 Branch / Group</span><span class="layer-concept">現場活動チーム</span></div>
         <div class="layer-band" data-layer="4"><span class="layer-label">支援対象</span><span class="layer-concept">活動の対象となる機関・住民</span></div>
@@ -790,12 +790,12 @@
   <!-- 右カラム：急性期基準マップ（ideal_map_acute.json） -->
   <div class="compare-col" id="tcCompareColAcute">
     <div class="compare-col-header">
-      <span class="compare-col-title">📐 急性期 基準マップ</span>
-      <span class="compare-col-stat" id="canvasStat-tcAcute">ノード: 0 ／ 矢印: 0</span>
+      <span class="compare-col-title">📐 基準となる組織構造（急性期）</span>
+      <span class="compare-col-stat" id="canvasStat-tcAcute">組織: 0 ／ 矢印: 0</span>
     </div>
     <div class="canvasWrap" id="canvasWrap-tcAcute">
       <div class="phase-layer-bands">
-        <div class="layer-band" data-layer="1"><span class="layer-label">指揮 Command</span><span class="layer-concept">指示命令の起点</span></div>
+        <div class="layer-band" data-layer="1"><span class="layer-label">指揮 Command</span><span class="layer-concept">指揮命令の起点</span></div>
         <div class="layer-band" data-layer="2"><span class="layer-label">調整・統制 Section</span><span class="layer-concept">情報集約・組織間調整</span></div>
         <div class="layer-band" data-layer="3"><span class="layer-label">実働 Branch / Group</span><span class="layer-concept">現場活動チーム</span></div>
         <div class="layer-band" data-layer="4"><span class="layer-label">支援対象</span><span class="layer-concept">活動の対象となる機関・住民</span></div>
@@ -824,7 +824,7 @@
           maxlength="100"></textarea>
         <div class="char-count"><span id="tcQ6CharCount">0</span> / 100 字</div>
         <div class="compare-qa-btn-row">
-          <button id="btnTransitionCompareBack" class="btn-secondary">← 関係差分に戻る</button>
+          <button id="btnTransitionCompareBack" class="btn-secondary">← 差分提示（関係付与）に戻る</button>
           <button id="btnFromTransitionToRecoveryCompare" class="btn-primary">復旧期 比較・分析へ進む →</button>
         </div>
       </div>
@@ -839,15 +839,15 @@
   <!-- 左カラム：学習者の復旧期基準マップ -->
   <div class="compare-col" id="rcCompareColIdeal">
     <div class="compare-col-header">
-      <span class="compare-col-title">📐 あなたの復旧期マップ</span>
+      <span class="compare-col-title">📐 あなたの組織構造（復旧期）</span>
       <button type="button" class="cmp-zoom-btn" data-zoom-phase="7" data-zoom-side="learner">🔍 拡大</button>
-      <span class="compare-col-stat" id="canvasStat-rcIdeal">ノード: 0 ／ 矢印: 0</span>
+      <span class="compare-col-stat" id="canvasStat-rcIdeal">組織: 0 ／ 矢印: 0</span>
     </div>
     <div class="canvasWrap" id="canvasWrap-rcIdeal">
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -877,15 +877,15 @@
   <!-- 右カラム：復旧期実際マップ -->
   <div class="compare-col" id="rcCompareColActual">
     <div class="compare-col-header">
-      <span class="compare-col-title">📋 復旧期 実際マップ</span>
+      <span class="compare-col-title">📋 実際の組織構造（復旧期）</span>
       <button type="button" class="cmp-zoom-btn" data-zoom-phase="7" data-zoom-side="actual">🔍 拡大</button>
-      <span class="compare-col-stat" id="canvasStat-rcActual">ノード: 0 ／ 矢印: 0</span>
+      <span class="compare-col-stat" id="canvasStat-rcActual">組織: 0 ／ 矢印: 0</span>
     </div>
     <div class="canvasWrap" id="canvasWrap-rcActual">
       <div class="phase-layer-bands">
         <div class="layer-band" data-layer="1">
           <span class="layer-label">指揮 Command</span>
-          <span class="layer-concept">指示命令の起点</span>
+          <span class="layer-concept">指揮命令の起点</span>
         </div>
         <div class="layer-band" data-layer="2">
           <span class="layer-label">調整・統制 Section</span>
@@ -919,10 +919,10 @@
     <div class="compare-qa-inner">
       <div class="compare-qa-block">
         <label class="compare-qa-label">
-          問3． 復旧期の基準となる組織構造と実際の対応をもとに整理した組織構造を比較し、最も重要と思う構造的差異を1つ挙げて一言で説明せよ。
+          問3． 復旧期の基準となる組織構造と実際の組織構造を比較し、最も重要と思う構造的差異を1つ挙げて一言で説明せよ。
         </label>
         <textarea id="rcQ6Answer" rows="2"
-          placeholder="例）基準となる組織構造では…が存在するが、実際の対応をもとに整理した組織構造では…"></textarea>
+          placeholder="例）基準となる組織構造では…が存在するが、実際の組織構造では…"></textarea>
         <div class="char-count"><span id="rcQ6CharCount">0</span> / 100 字</div>
       </div>
       <div class="compare-qa-block">

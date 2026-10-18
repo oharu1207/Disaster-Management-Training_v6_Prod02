@@ -85,13 +85,13 @@
   const SEGMENTS = Object.freeze([
     { id: 1,  name: "チュートリアル",             phases: [PHASE.ORIENTATION],                               targetMin: 4  },
     { id: 2,  name: "急性期：層配置",             phases: [PHASE.ACUTE_MAP],                                 targetMin: 8  },
-    { id: 3,  name: "急性期：層配置の差分確認",   phases: [PHASE.ACUTE_LAYER_DIFF],                          targetMin: 3  },
+    { id: 3,  name: "急性期：層配置の差分提示",   phases: [PHASE.ACUTE_LAYER_DIFF],                          targetMin: 3  },
     { id: 4,  name: "急性期：関係付与",           phases: [PHASE.ACUTE_EDGE_MAP],                            targetMin: 12 },
-    { id: 5,  name: "急性期：関係付与の差分確認", phases: [PHASE.ACUTE_DIFF],                                targetMin: 7  },
+    { id: 5,  name: "急性期：関係付与の差分提示", phases: [PHASE.ACUTE_DIFF],                                targetMin: 7  },
     { id: 6,  name: "急性期の比較・分析",         phases: [PHASE.ACUTE_COMPARE],                             targetMin: 5  },
     { id: 7,  name: "復旧期準備",                 phases: [PHASE.RECOVERY_PREP],                             targetMin: 4  },
-    { id: 8,  name: "復旧期マップ作成",           phases: [PHASE.RECOVERY_MAP],                              targetMin: 9  },
-    { id: 9,  name: "復旧期の差分確認",           phases: [PHASE.RECOVERY_LAYER_DIFF, PHASE.RECOVERY_DIFF],  targetMin: 4  },
+    { id: 8,  name: "復旧期：組織構造の作成",           phases: [PHASE.RECOVERY_MAP],                              targetMin: 9  },
+    { id: 9,  name: "復旧期の差分提示",           phases: [PHASE.RECOVERY_LAYER_DIFF, PHASE.RECOVERY_DIFF],  targetMin: 4  },
     { id: 10, name: "復旧期の比較・分析",         phases: [PHASE.RECOVERY_COMPARE],                          targetMin: 4  },
   ]);
   // SEGMENTS に含まれないフェーズ（SESSION_END・無効化フェーズ）は null
@@ -188,7 +188,7 @@
   // === エッジ種別（3種類のみ） ===
   // label: エッジラベル, stroke: 線色, bidirectional: 双方向フラグ
   const EDGE_TYPES = [
-    { label: "指示命令", desc: "命令・指示の方向を設定", stroke: "#ff6b6b", bidirectional: false },
+    { label: "指示命令", desc: "指揮命令の方向を設定", stroke: "#ff6b6b", bidirectional: false },
     { label: "情報伝達", desc: "情報の流れる方向を設定", stroke: "#4d8fff", bidirectional: false },
     { label: "連携協力", desc: "双方向・協力関係（固定）", stroke: "#3dcf8a", bidirectional: true  },
   ];
@@ -198,6 +198,10 @@
     [...EDGE_TYPES, { label: "支援", stroke: "#c084fc", bidirectional: false }]
       .map(t => [t.label, t])
   );
+
+  // 表示名変換：内部ラベル値（採点・ログ・JSONの照合キー）は変更せず、表示時のみ置き換える
+  const EDGE_LABEL_DISPLAY = Object.freeze({ "指示命令": "指揮命令" });
+  const displayEdgeLabel = l => (l != null && EDGE_LABEL_DISPLAY[l]) || l;
 
 
   // === 復旧期データ ===
@@ -235,7 +239,7 @@
 
   const NODE_DESCRIPTIONS = {
     "県庁":                          "広域指揮・県全体の災害対応方針を決定する行政機関",
-    "C県A保健所":                   "地域の現地指揮拠点・支援チームの受入・調整を担う行政機関",
+    "C県A保健所":                   "地域の現地指揮拠点・応援チームの受入・調整を担う行政機関",
     "地域災害医療コーディネーター": "医療資源の配分と機関間調整を専門的に支援する",
     "DMAT":                          "災害や新興感染症等のまん延時に，地域において必要な医療提供体制を支援し，傷病者の生命を守るため厚生労働省の認めた専門的な研修・訓練を受けた災害派遣医療チーム",
     "DHEAT":                         "一定規模以上の災害が発生した際に，被災都道府県庁の保健医療福祉調整本部及び保健所が担う指揮・総合調整機能等を支援するため、専門的な研修・訓練を受けた都道府県等の職員により構成される応援派遣チーム",
@@ -406,8 +410,8 @@
       {
         id: "q6",
         kind: "textarea",
-        label: "問3． 復旧期の基準となる組織構造と実際の対応をもとに整理した組織構造を比較し、最も重要と思う構造的差異を1つ挙げて説明せよ。（100字以内）",
-        placeholder: "例）基準となる組織構造では…が存在するが、実際の対応をもとに整理した組織構造では…",
+        label: "問3． 復旧期の基準となる組織構造と実際の組織構造を比較し、最も重要と思う構造的差異を1つ挙げて説明せよ。（100字以内）",
+        placeholder: "例）基準となる組織構造では…が存在するが、実際の組織構造では…",
         maxLength: 100,
       },
       {
@@ -1158,7 +1162,7 @@
     if (phaseData.p6.nodes.length === 0) {
       return _bailValidation(prevPhase, attemptedPhase,
         "RECOVERY_MAP_EMPTY",
-        "先に復旧期マップを作成してください",
+        "先に復旧期の組織構造を作成してください",
         {}, 3000);
     }
 
@@ -1172,7 +1176,7 @@
       flashUnsetLayerNodes(unsetNodes);
       return _bailValidation(prevPhase, attemptedPhase,
         "RECOVERY_LAYER_UNSET",
-        "レイヤーが設定されていない組織名があります。灰色のノードをドラッグして、適切なレイヤーに配置してください。",
+        "層が設定されていない組織名があります。灰色の組織をドラッグして、適切な層に配置してください。",
         { nodeIds: unsetNodes.map(n => n.id), labels: unsetNodes.map(n => n.label) }, 4000);
     }
 
@@ -1281,7 +1285,7 @@
     // bundleループ（ヒント→自己修正→正解＋WHY）に編集させるため、共通マップハンドラに fall-through する。
     if (p === PHASE.ACUTE_LAYER_DIFF) {
       if (phaseData.acute.nodes.length === 0) {
-        showToast("先に急性期マップを作成してください", 3000);
+        showToast("先に急性期の組織構造を作成してください", 3000);
         logOp("VALIDATION_ERROR", { type: "ACUTE_MAP_EMPTY", attemptedPhase: p });
         state.phase = prevPhase;
         activatePhaseView(prevPhase);
@@ -1308,11 +1312,11 @@
 
       const _ldBackBtn = $("btnDiffBack");
       const _ldNextBtn = $("btnDiffNext");
-      if (_ldBackBtn) _ldBackBtn.textContent = "← マップ作成に戻る";
+      if (_ldBackBtn) _ldBackBtn.textContent = "← 組織構造の作成に戻る";
       if (_ldNextBtn) _ldNextBtn.textContent = "確認完了 → 関係付与へ"; // [CHANGED flow-v2] 退出先がPhase13を経ずPhase14へ直結
 
       const _ldTitle = $("diffTitle");
-      if (_ldTitle) _ldTitle.textContent = "レイヤー配置の確認";
+      if (_ldTitle) _ldTitle.textContent = "差分提示（層）";
       // fall-through → 共通 MAP_PHASE_CONFIG ハンドラが loadPhaseData("acute") / renderAll / _logPhaseTransition を実行
     }
 
@@ -1325,7 +1329,7 @@
       const initFp = phaseData.acuteRevisedInitFingerprint
         ?? (phaseData.acuteBaseline ? p6Fingerprint(phaseData.acuteBaseline) : null);
       const hadEdits = initFp != null && p6Fingerprint(phaseData.acuteRevised) !== initFp;
-      if (hadEdits && !confirm("マップ作成に戻ると、差分提示での修正は破棄されます。戻りますか？")) {
+      if (hadEdits && !confirm("組織構造の作成に戻ると、差分提示での修正は破棄されます。戻りますか？")) {
         logOp("ACUTE_BACK_CANCELLED", { fromPhase: prevPhase });
         state.phase = prevPhase;
         activatePhaseView(prevPhase);
@@ -1351,7 +1355,7 @@
     // bundleループに編集させるため、共通マップハンドラに fall-through する。
     if (p === PHASE.ACUTE_DIFF) {
       if (phaseData.acute.nodes.length === 0) {
-        showToast("先に急性期マップを作成してください", 3000);
+        showToast("先に急性期の組織構造を作成してください", 3000);
         logOp("VALIDATION_ERROR", { type: "ACUTE_MAP_EMPTY", attemptedPhase: p });
         state.phase = prevPhase;
         activatePhaseView(prevPhase);
@@ -1362,7 +1366,7 @@
       if (!phaseData.acuteBaseline && (phaseData.acute.edges || []).length === 0 &&
           !_restoringFromStorage && !state.sessionEnded) {
         const ok = confirmIncompleteAdvance("ACUTE_EDGES_EMPTY", prevPhase, p,
-          "矢印が1本も引かれていません。このまま進むと、この時点のマップが最初の回答として記録されます。進みますか？");
+          "矢印が1本も引かれていません。このまま進むと、この時点の組織構造が最初の回答として記録されます。進みますか？");
         if (!ok) {
           state.phase = prevPhase;
           activatePhaseView(prevPhase);
@@ -1388,11 +1392,11 @@
 
       const _dBackBtn = $("btnDiffBack");
       const _dNextBtn = $("btnDiffNext");
-      if (_dBackBtn) _dBackBtn.textContent = "← マップ作成に戻る";
+      if (_dBackBtn) _dBackBtn.textContent = "← 組織構造の作成に戻る";
       if (_dNextBtn) _dNextBtn.textContent = "確認完了 → 比較へ"; // [CHANGED flow-v2] 退出先がPhase11を経ずPhase2へ直結
 
       const _dTitle = $("diffTitle");
-      if (_dTitle) _dTitle.textContent = "関係（矢印）の確認";
+      if (_dTitle) _dTitle.textContent = "差分提示（関係付与）";
       // fall-through → 共通 MAP_PHASE_CONFIG ハンドラが loadPhaseData("acuteRevised") / renderAll / _logPhaseTransition を実行
     }
 
@@ -1419,18 +1423,18 @@
 
       const _rlBackBtn = $("btnRecoveryDiffBack");
       const _rlNextBtn = $("btnRecoveryDiffNext");
-      if (_rlBackBtn) _rlBackBtn.textContent = "← 復旧期マップに戻る";
-      if (_rlNextBtn) _rlNextBtn.textContent = "確認完了 → 関係差分へ";
+      if (_rlBackBtn) _rlBackBtn.textContent = "← 組織構造（復旧期）の作成に戻る";
+      if (_rlNextBtn) _rlNextBtn.textContent = "確認完了 → 差分提示（関係付与）へ";
 
       const _rlTitle = $("recoveryDiffTitle");
-      if (_rlTitle) _rlTitle.textContent = "レイヤー配置の確認（復旧期）";
+      if (_rlTitle) _rlTitle.textContent = "差分提示（復旧期・層）";
       // fall-through → 共通 MAP_PHASE_CONFIG ハンドラが loadPhaseData("recoveryRevised") / renderAll / _logPhaseTransition を実行
     }
 
     // ── 差分提示（復旧期関係） ───────────────────────────────────────── [NEW]
     if (p === PHASE.RECOVERY_DIFF) {
       if (phaseData.p6.nodes.length === 0) {
-        showToast("先に復旧期マップを作成してください", 3000);
+        showToast("先に復旧期の組織構造を作成してください", 3000);
         logOp("VALIDATION_ERROR", { type: "RECOVERY_MAP_EMPTY", attemptedPhase: p });
         state.phase = prevPhase;
         activatePhaseView(prevPhase);
@@ -1455,12 +1459,12 @@
 
       const _rdBackBtn = $("btnRecoveryDiffBack");
       const _rdNextBtn = $("btnRecoveryDiffNext");
-      if (_rdBackBtn) _rdBackBtn.textContent = "← レイヤー差分へ戻る";
+      if (_rdBackBtn) _rdBackBtn.textContent = "← 差分提示（層）へ戻る";
       if (_rdNextBtn) _rdNextBtn.textContent = FEATURES.ENABLE_TRANSITION_COMPARE_PHASE
         ? "確認完了 →" : "確認完了 → 比較・分析へ"; // [CHANGED flow-v4] 退出先 RECOVERY_COMPARE
 
       const _rdTitle = $("recoveryDiffTitle");
-      if (_rdTitle) _rdTitle.textContent = "関係（矢印）の確認（復旧期）";
+      if (_rdTitle) _rdTitle.textContent = "差分提示（復旧期・関係付与）";
       // フェーズ16へ入場した時点で完走ゲートを再度有効にする（§7-5：15へ戻った場合は
       // 再度15の入場ブロックで initRecoveryBundleLoop が呼ばれ、ここでもリセットされる）。
       _rdwReachedComplete = false;
@@ -1479,7 +1483,7 @@
     if (p === PHASE.ACUTE_COMPARE) {
       // 未作成チェック
       if (phaseData.acute.nodes.length === 0) {
-        showToast("先に急性期の基準マップを作成してください", 3000);
+        showToast("先に急性期の組織構造を作成してください", 3000);
         logOp("VALIDATION_ERROR", { type: "ACUTE_MAP_EMPTY", attemptedPhase: p });
         state.phase = prevPhase;
         activatePhaseView(prevPhase);
@@ -1488,7 +1492,7 @@
       }
       const acuteUnsetNodes = phaseData.acute.nodes.filter(n => n.layerId === null);
       if (acuteUnsetNodes.length > 0) {
-        showToast("レイヤーが設定されていない組織名があります。灰色のノードをドラッグして、適切なレイヤーに配置してください。", 4000);
+        showToast("層が設定されていない組織名があります。灰色の組織をドラッグして、適切な層に配置してください。", 4000);
         logOp("VALIDATION_ERROR", {
           type: "ACUTE_LAYER_UNSET", attemptedPhase: p,
           nodeIds: acuteUnsetNodes.map(n => n.id), labels: acuteUnsetNodes.map(n => n.label)
@@ -1601,7 +1605,7 @@
           );
         } else if (mapLoadStatus.idealAcute === "error") {
           if (tcAcuteCanvas) tcAcuteCanvas.innerHTML =
-            '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 急性期マップの読み込みに失敗しました</div>';
+            '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 基準となる組織構造（急性期）の読み込みに失敗しました</div>';
         } else {
           if (tcAcuteCanvas) tcAcuteCanvas.innerHTML =
             '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
@@ -1645,7 +1649,7 @@
         });
       }
       _logPhaseTransition(prevPhase, p, prevStartTime);
-      showToast("ノードをダブルクリックすると接続関係をハイライトできます", 3500);
+      showToast("組織をダブルクリックすると接続関係をハイライトできます", 3500);
       return;
     }
 
@@ -1744,9 +1748,9 @@
           if (_prepReasons.length > 0 && p6NeedsRebuild() &&
               !_restoringFromStorage && !state.sessionEnded) {
             const _prepMsg = _prepReasons.length === 2
-              ? "削除するノードも追加する組織も選ばれていません。このまま進みますか？"
+              ? "削除する組織も追加する組織も選ばれていません。このまま進みますか？"
               : _prepReasons[0] === "removal_empty"
-                ? "削除するノードが選ばれていません。このまま進みますか？"
+                ? "削除する組織が選ばれていません。このまま進みますか？"
                 : "追加する組織が選ばれていません。このまま進みますか？";
             const ok = confirmIncompleteAdvance("RECOVERY_PREP_INCOMPLETE", prevPhase, p, _prepMsg,
               { reasons: _prepReasons });
@@ -1927,7 +1931,7 @@
   function endSession(incomplete = null) {
     if (state.sessionEnded) return;
     const prevPhase = state.phase;
-    const endMsg = "学習を終了しますか？終了後は回答やマップを変更できなくなります。";
+    const endMsg = "学習を終了しますか？終了後は回答や組織構造を変更できなくなります。";
     if (incomplete) {
       if (!confirmIncompleteAdvance(incomplete.gate, prevPhase, PHASE.SESSION_END,
             `${incomplete.text}。${endMsg}`, incomplete.detail)) return;
@@ -2287,7 +2291,7 @@
       state.phase === PHASE.ACUTE_LAYER_DIFF ||
       state.phase === PHASE.RECOVERY_DIFF;
     if (isNodeDeleteBlockedPhase) {
-      showToast("このフェーズではノードを削除できません");
+      showToast("このフェーズでは組織を削除できません");
       return;
     }
     if (!confirm(`「${n?.label}」を削除しますか？`)) return;
@@ -2512,7 +2516,7 @@
           const bandBottom = rect.height * n.layerId * 0.25 - 1;
           const clampedY   = clamp(n.y, bandTop, bandBottom);
           if (clampedY !== n.y && !layerLockToastShown) {
-            showToast("この段階ではレイヤーは変更できません（同じ層の中での位置調整は可能です）", 2500);
+            showToast("この段階では層は変更できません（同じ層の中での位置調整は可能です）", 2500);
             layerLockToastShown = true;   // ドラッグ1回につき最大1回
           }
           n.y = clampedY;
@@ -2731,7 +2735,7 @@
       return `
         <button class="edge-dir-btn edge-create-type-btn" data-label="${esc(t.label)}"
           style="width:100%;border-color:${t.stroke}">
-          <span class="dir-txt" style="color:${t.stroke}">${dot} ${esc(t.label)}</span>
+          <span class="dir-txt" style="color:${t.stroke}">${dot} ${esc(displayEdgeLabel(t.label))}</span>
           <span class="dir-sub">${esc(t.desc)}</span>
         </button>`;
     }).join("");
@@ -2904,7 +2908,7 @@
       text.setAttribute("x", lx); text.setAttribute("y", ly - 2);
       text.setAttribute("class", "edge-label-text");
       text.setAttribute("fill", isSelected ? "#fbbf24" : col);
-      text.textContent = e.label || "";
+      text.textContent = displayEdgeLabel(e.label) || "";
       edgeGroup.appendChild(text);
 
       // 選択中エッジに × 削除ボタンを中点に表示
@@ -2962,7 +2966,7 @@
     const sel = $("q1Answer");
     if (!sel) return;
     const prev = state.answers.q1;
-    sel.innerHTML = `<option value="">（ノードを選択）</option>` +
+    sel.innerHTML = `<option value="">（組織を選択）</option>` +
       state.nodes.map(n => `<option value="${n.id}" ${n.id===prev?"selected":""}>${esc(n.label)}</option>`).join("");
   }
 
@@ -2999,7 +3003,7 @@
   // CANVAS STAT
   // ================================================================
   function updateCanvasStat() {
-    if (activeCanvasStatEl) activeCanvasStatEl.textContent = `ノード: ${state.nodes.length} ／ 矢印: ${state.edges.length}`;
+    if (activeCanvasStatEl) activeCanvasStatEl.textContent = `組織: ${state.nodes.length} ／ 矢印: ${state.edges.length}`;
   }
 
   // ================================================================
@@ -3407,7 +3411,7 @@
   function resetAll() {
     // [NEW flow-v4] 学習終了後：終了状態とロックを解除する（データは消さない）
     if (state.sessionEnded) {
-      if (!confirm("学習終了状態を解除して編集可能に戻しますか？（回答・マップは消えません）")) return;
+      if (!confirm("学習終了状態を解除して編集可能に戻しますか？（回答・組織構造は消えません）")) return;
       // [CHANGED flow-v4 段階2] 通常はボタンが disabled のため到達しない安全策。
       // 凍結した測定値（sessionEndSnapshot → atSessionEnd）は消さない。
       logOp("RESET", { target: "sessionEnd", sessionEndedAt: state.sessionEndedAt });
@@ -3448,7 +3452,7 @@
     // 構築済みのマップや他の画面のデータ、旧設問の回答は消さない。
     // （急性期比較は従来、専用分岐がなく下の汎用初期化に落ちて表示中マップを消していた）
     if (state.phase === PHASE.ACUTE_COMPARE || state.phase === PHASE.RECOVERY_COMPARE) {
-      if (!confirm("比較・分析で選んだ原則と解説の表示をリセットしますか？（マップは消えません）")) return;
+      if (!confirm("比較・分析で選んだ原則と解説の表示をリセットしますか？（組織構造は消えません）")) return;
       const side = COMPARE_SIDE[state.phase];
       phaseData.compareStudy[side] = freshCompareStudyFor(state.phase);
       logOp("RESET", { target: `compareStudy.${side}` });
@@ -3479,7 +3483,7 @@
     }
     // 復旧期マップ：ノード・矢印のみクリア（再初期化を許可）
     if (state.phase === PHASE.RECOVERY_MAP) {
-      if (!confirm("リセットしますか？（復旧期マップのノード・矢印・ログを消します）")) return;
+      if (!confirm("リセットしますか？（復旧期の組織構造の組織・矢印・ログを消します）")) return;
       state.nodes = []; state.edges = [];
       state.answers = { q1: "", q2: "" }; state.log = [];
       state.selectedNodeId = null; state.selectedEdgeId = null;
@@ -3492,7 +3496,7 @@
       return;
     }
     const phaseLabel = state.phase === PHASE.RECOVERY_MAP ? "復旧期" : "急性期";
-    if (!confirm(`初期化しますか？（${phaseLabel}のノード・矢印・回答・ログが消えます）`)) return;
+    if (!confirm(`初期化しますか？（${phaseLabel}の組織・矢印・回答・ログが消えます）`)) return;
     state.nodes = []; state.edges = [];
     state.answers = { q1: "", q2: "" }; state.log = [];
     state.selectedNodeId = null; state.selectedEdgeId = null;
@@ -3791,7 +3795,7 @@
     // 置き直しループを誘発する（2026-07-08 テストログで3周を確認）。
     // 正答フィードバックの提示として学習者に通知する。0件時は通知しない。
     if (snappedLabels.length > 0) {
-      showToast(`残っていた${snappedLabels.length}件の配置は、正解の層に確定しました`, 3500);
+      showToast(`残っていた${snappedLabels.length}件の配置は、正しい層に確定しました`, 3500);
     }
     return snappedLabels;
   }
@@ -3814,7 +3818,7 @@
   // mapVersion と同じ運用。文面変更と版バンプは同一コミットに含める）。
   // "ht-v1" は計装以前の旧文面を指す暗黙の版で、ログに ht-v1 が現れることはない
   // ——hintTextsVersion 欠落＝旧文面（ht-v1相当）、という判別になる。
-  const HINT_TEXTS_VERSION = "ht-v5";
+  const HINT_TEXTS_VERSION = "ht-v6";
 
   const HINT_TEXTS = {
     support_missing:
@@ -3827,10 +3831,10 @@
     hub_direct_supplement:
       "ただし管轄で活動する地域の団体は事情が異なります。シナリオの該当する段落で、組織の種類がどう区別されているか確認してください。",
     command_missing:
-      "凡例の『指示命令』は、同一の指揮系統の中だけで使います。この2つの組織は同じ指揮系統の中にありますか？ シナリオで、一方が他方の指示を受けて動いている場面を探してみましょう。",
+      "凡例の『指揮命令』は、同一の指揮系統の中だけで使います。この2つの組織は同じ指揮系統の中にありますか？ シナリオで、一方が他方の指示を受けて動いている場面を探してみましょう。",
     command_overuse:
-      "「指示命令」は同一の指揮系統の中だけで使います。この2つは同じ組織の中の関係ですか？ " +
-      "凡例の「指示命令」と「連携協力」の定義を見比べてみましょう。",
+      "「指揮命令」は同一の指揮系統の中だけで使います。この2つは同じ組織の中の関係ですか？ " +
+      "凡例の「指揮命令」と「連携協力」の定義を見比べてみましょう。",
     edge_label_error:
       "矢印の種類は『誰が誰に何をするか』で決まります。この組み合わせは、一方がもう一方の活動を現場で支える関係ですか？ それとも別々の組織どうしの対等な協力ですか？ 凡例の定義と、シナリオでの両者のやり取りを見比べてください。",
     layer_mismatch:
@@ -3886,7 +3890,7 @@
     };
     const GROUP_ORDER = ["layer", "command", "hub", "support_origin", "support"];
     const GROUP_LABEL = {
-      command:        "指示命令と連携協力の使い分け",
+      command:        "指揮命令と連携協力の使い分け",
       layer:          "配置する層",
       hub:            "連携先（どのまとめ役につなぐか）",
       support_origin: "支援の出どころ",
@@ -3894,8 +3898,8 @@
     };
 
     const WHY_CMD_OVERUSE =
-      "指示命令は、同じ組織の中の上下関係でだけ使います。別々の組織どうしは、対等な連携協力で結びます。" +
-      "この構造で指示命令が成り立つのは、県庁からC県A保健所へ、C県A保健所からDHEATへ、の2本だけです。";
+      "指揮命令は、同じ組織の中の上下関係でだけ使います。別々の組織どうしは、対等な連携協力で結びます。" +
+      "この構造で指揮命令が成り立つのは、県庁からC県A保健所へ、C県A保健所からDHEATへ、の2本だけです。";
     const WHY_EDGE_LABEL =
       "まとめ役と各組織は、上下関係ではなく対等な協力関係です。そのため、矢印は連携協力にします。";
     const WHY_HUB_OVERUSE =
@@ -3923,7 +3927,7 @@
 
     // bundleループの各カテゴリ単位・複数件時のインスタンス側短縮【なぜ】。★仮テキスト
     const WHY_SHORT = {
-      command_overuse:         "別々の組織どうしなので、指示命令の関係にはなりません。",
+      command_overuse:         "別々の組織どうしなので、指揮命令の関係にはなりません。",
       edge_label_error:        "まとめ役と各組織は対等な協力関係です。",
       hub_overuse:             "この2つは決まったまとめ役を通さない直接のつながりを持ちません。",
       support_layer_violation: "支援の矢印を出せるのは実働の層のチームだけです。",
@@ -3996,28 +4000,28 @@
           break;
         }
         case "command_missing": {
-          what = `「${d.fromLabel}」から「${d.toLabel}」への指示命令の矢印がありません。`;
+          what = `「${d.fromLabel}」から「${d.toLabel}」への指揮命令の矢印がありません。`;
           const nonHo = d.fromLabel === "C県A保健所" ? d.toLabel : d.fromLabel;
           why  = idealNodeMap[nonHo]?.edgeReason
-               || `「${nonHo}」への指示命令の系統が必要です。`;
-          fix  = `「${d.fromLabel}」から「${d.toLabel}」へ指示命令の矢印を引いてください。`;
+               || `「${nonHo}」への指揮命令の系統が必要です。`;
+          fix  = `「${d.fromLabel}」から「${d.toLabel}」へ指揮命令の矢印を引いてください。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           ghostTargets   = { nodes: [], edges: [{ from: d.fromLabel, to: d.toLabel, label: "指示命令" }] };
           whyOwner = nonHo;
           break;
         }
         case "command_overuse": {
-          what = `「${d.fromLabel}」から「${d.toLabel}」へ指示命令の矢印が引かれていますが、この2つは指示命令の関係ではありません。`;
+          what = `「${d.fromLabel}」から「${d.toLabel}」へ指揮命令の矢印が引かれていますが、この2つは指揮命令の関係ではありません。`;
           why  = WHY_CMD_OVERUSE;
-          fix  = "この指示命令の矢印を削除してください。つながり自体が必要な場合は、連携協力で引き直してください。";
+          fix  = "この指揮命令の矢印を削除してください。つながり自体が必要な場合は、連携協力で引き直してください。";
           involvedLabels = [d.fromLabel, d.toLabel];
           ghostTargets   = { nodes: [], edges: [] };
           break;
         }
         case "edge_label_error": {
-          what = `「${d.fromLabel}」と「${d.toLabel}」をつなぐこと自体は正しいのですが、矢印の種類が「${d.gotLabel}」になっています。`;
+          what = `「${d.fromLabel}」と「${d.toLabel}」をつなぐこと自体は正しいのですが、矢印の種類が「${displayEdgeLabel(d.gotLabel)}」になっています。`;
           why  = WHY_EDGE_LABEL;
-          fix  = `この矢印の種類を「${d.expectedLabel}」に変更してください。`;
+          fix  = `この矢印の種類を「${displayEdgeLabel(d.expectedLabel)}」に変更してください。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           ghostTargets   = { nodes: [], edges: [{ from: d.fromLabel, to: d.toLabel, label: d.expectedLabel }] };
           break;
@@ -4073,7 +4077,7 @@
           break;
         }
         case "support_overuse": {
-          what = `「${d.fromLabel}」から「${d.toLabel}」へ支援の矢印がありますが、この支援関係は正解構造にはありません。`;
+          what = `「${d.fromLabel}」から「${d.toLabel}」へ支援の矢印がありますが、この支援関係は基準となる組織構造にはありません。`;
           const fromReason = idealNodeMap[d.fromLabel]?.edgeReason;
           why  = fromReason
                ? `${fromReason}役割に合った支援先だけに矢印を引きます。`
@@ -4098,7 +4102,7 @@
         default: {
           what = `不明なエラー (${err.category})`;
           why  = "";
-          fix  = "マップを修正してください。";
+          fix  = "組織構造を修正してください。";
           break;
         }
       }
@@ -4194,7 +4198,7 @@
         const d = s.error?.detail || {};
         lines.push([
           seg("・", false), seg(d.fromLabel, true), seg(" ⇔ ", false), seg(d.toLabel, true),
-          seg("：「", false), seg(d.gotLabel, false), seg("」→ 正しくは「", false), seg(d.expectedLabel, false), seg("」", false),
+          seg("：「", false), seg(displayEdgeLabel(d.gotLabel), false), seg("」→ 正しくは「", false), seg(displayEdgeLabel(d.expectedLabel), false), seg("」", false),
         ]);
       }
       return lines;
@@ -4218,7 +4222,7 @@
         blocks.push(lines);
       }
       if (missingSteps.length) {
-        const lines = [[seg("不足している連携協力（マップ上の点線）：", false)]];
+        const lines = [[seg("不足している連携協力（図中の点線）：", false)]];
         for (const s of missingSteps) {
           const d = s.error.detail;
           lines.push([seg("・", false), seg(d.fromLabel, true), seg(" ⇔ ", false), seg(d.toLabel, true)]);
@@ -4245,11 +4249,11 @@
     function buildWhatLines() {
       switch (category) {
         case "support_missing":
-          return groupedByFromLines(relatedSteps, "不足している支援の矢印（マップ上の点線）：");
+          return groupedByFromLines(relatedSteps, "不足している支援の矢印（図中の点線）：");
         case "command_missing":
-          return groupedByFromLines(relatedSteps, "不足している指示命令の矢印（マップ上の点線）：");
+          return groupedByFromLines(relatedSteps, "不足している指揮命令の矢印（図中の点線）：");
         case "command_overuse":
-          return pairListLines(relatedSteps, "指示命令の関係ではないのに、指示命令になっている矢印：", "→");
+          return pairListLines(relatedSteps, "指揮命令の関係ではないのに、指揮命令になっている矢印：", "→");
         case "edge_label_error":
           return edgeLabelErrorLines(relatedSteps);
         case "hub_misassignment":
@@ -4257,7 +4261,7 @@
         case "support_layer_violation":
           return pairListLines(relatedSteps, "実働の層以外から出ている支援の矢印：", "→");
         case "support_overuse":
-          return pairListLines(relatedSteps, "正解構造にはない支援の矢印：", "→");
+          return pairListLines(relatedSteps, "基準となる組織構造にはない支援の矢印：", "→");
         default:
           return relatedSteps.map(s => [seg(s.what, false)]);
       }
@@ -4291,7 +4295,7 @@
     function buildFix() {
       const FIX_TEXTS = {
         support_missing:          "点線の矢印を、それぞれ支援元から支援先へ引いてください。",
-        command_missing:          "点線のとおり、指示命令の矢印をそれぞれ引いてください。",
+        command_missing:          "点線のとおり、指揮命令の矢印をそれぞれ引いてください。",
         command_overuse:          "上記の矢印を削除してください。つながり自体が必要な場合は、連携協力で引き直してください。",
         edge_label_error:         "矢印の種類を、それぞれ「正しくは」の種類に変更してください。",
         support_layer_violation:  "上記の支援の矢印を削除してください。必要なら、実働の層のチームから引き直してください。",
@@ -5145,10 +5149,10 @@
       _wtSetReached(_dwStage === "layer" ? "acuteLayer" : "acuteEdge"); // [NEW flow-v4 段階2補修2]
       $("btnDiffNext")?.classList.remove("btn-gated");
 
-      if (counterEl)  counterEl.textContent  = "採点結果";
+      if (counterEl)  counterEl.textContent  = "差分提示の結果";
       if (groupTagEl) { groupTagEl.textContent = ""; groupTagEl.style.display = "none"; }
       if (whatEl) whatEl.textContent = _dwStage === "layer"
-        ? "レイヤー配置に修正ポイントはありません。よくできています。"
+        ? "層配置に修正ポイントはありません。よくできています。"
         : "関係（矢印）に修正ポイントはありません。よくできています。";
       if (whyEl)  whyEl.textContent  = "";
       if (fixEl)  fixEl.textContent  = "";
@@ -5164,8 +5168,8 @@
       if (counterEl)  counterEl.textContent = `全 ${errorCount} 件`;
       if (groupTagEl) { groupTagEl.textContent = ""; groupTagEl.style.display = "none"; }
       if (whatEl) whatEl.textContent = _dwStage === "layer"
-        ? `あなたのレイヤー配置には ${errorCount} 件の修正ポイントがあります。`
-        : `あなたのマップの関係（矢印）には ${errorCount} 件の修正ポイントがあります。`;
+        ? `あなたの層配置には ${errorCount} 件の修正ポイントがあります。`
+        : `あなたの組織構造の関係（矢印）には ${errorCount} 件の修正ポイントがあります。`;
       const countsByGroup  = {};
       const labelByGroup   = {};
       for (const s of _dwSteps) {
@@ -5220,7 +5224,7 @@
         if (whatEl) whatEl.textContent = `未解消の修正ポイントが ${residualErrors.length} 件あります。`;
         if (whyEl)  whyEl.textContent  = "";
         if (fixEl)  fixEl.textContent  = _dwStage === "layer"
-          ? "このまま進むと、残りは正解の層に確定されます。"
+          ? "このまま進むと、残りは正しい層に確定されます。"
           : "このままの内容で比較・分析へ進みます。";
       }
 
@@ -5327,7 +5331,7 @@
   // ================================================================
 
   // ── ヒント文（addendum B §B14.6。ht-r2）。急性期の HINT_TEXTS は変更しない ──
-  const RECOVERY_HINT_TEXTS_VERSION = "ht-r2";
+  const RECOVERY_HINT_TEXTS_VERSION = "ht-r3";
 
   const RECOVERY_HINT_TEXTS = {
 
@@ -5348,12 +5352,12 @@
 
     // ── 軸1（指揮系統）─────────────────────────────────────────
     command_missing:
-      "凡例の「指示命令」は、同一の指揮系統の中だけで使います。この2つの組織は同じ指揮系統の中にありますか？ " +
+      "凡例の「指揮命令」は、同一の指揮系統の中だけで使います。この2つの組織は同じ指揮系統の中にありますか？ " +
       "シナリオで、一方が他方の指示を受けて動いている場面を探してみましょう。",
 
     command_overuse:
-      "「指示命令」は同一の指揮系統の中だけで使います。この2つは同じ組織の中の関係ですか？ " +
-      "凡例の「指示命令」と「連携協力」の定義を見比べてみましょう。",
+      "「指揮命令」は同一の指揮系統の中だけで使います。この2つは同じ組織の中の関係ですか？ " +
+      "凡例の「指揮命令」と「連携協力」の定義を見比べてみましょう。",
 
     // ── 軸2（ハブ接続）─────────────────────────────────────────
     hub_misassignment:
@@ -5417,7 +5421,7 @@
       "指揮系統の中で、まだ引かれていないつながりが{n}件あります。",
 
     command_overuse:
-      "指示命令として引かれている矢印のうち、見直しが必要なものが{n}件あります。",
+      "指揮命令として引かれている矢印のうち、見直しが必要なものが{n}件あります。",
 
     // ── 軸2：ハブ接続 ──────────────────────────────────
     // 起点は出す。正しいまとめ役は伏せる。
@@ -5428,7 +5432,7 @@
       "「{peripheral}」が、どのまとめ役ともつながっていません。",
 
     hub_misassignment_overuse:
-      "まとめ役とのつながりのうち、正解の構造にはないものが{n}件あります。",
+      "まとめ役とのつながりのうち、基準となる組織構造にはないものが{n}件あります。",
 
     // つないでいるペアは出す（正しい組み合わせのため）。正しい種類は伏せる。
     edge_label_error:
@@ -5696,7 +5700,7 @@
       createdCount: createdLabels.length, movedCount: movedLabels.length,
     });
     if (createdLabels.length > 0 || movedLabels.length > 0) {
-      showToast(`欠落${createdLabels.length}件を生成し、誤配置${movedLabels.length}件を正解の層に移動しました`, 3500);
+      showToast(`欠落${createdLabels.length}件を生成し、誤配置${movedLabels.length}件を正しい層に移動しました`, 3500);
     }
     return { createdLabels, movedLabels };
   }
@@ -5803,7 +5807,7 @@
           involvedLabels = [d.label];
           break;
         case "node_extra":
-          what = `「${d.label}」が配置されていますが、正解の構成には含まれていません。`;
+          what = `「${d.label}」が配置されていますが、基準となる組織構造には含まれていません。`;
           involvedLabels = [d.label];
           break;
         case "layer_mismatch": {
@@ -5816,15 +5820,15 @@
           break;
         }
         case "command_missing":
-          what = `「${d.fromLabel}」から「${d.toLabel}」への指示命令がありません。`;
+          what = `「${d.fromLabel}」から「${d.toLabel}」への指揮命令がありません。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           break;
         case "command_overuse":
-          what = `「${d.fromLabel}」から「${d.toLabel}」へ指示命令が引かれていますが、この2つは指示命令の関係ではありません。`;
+          what = `「${d.fromLabel}」から「${d.toLabel}」へ指揮命令が引かれていますが、この2つは指揮命令の関係ではありません。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           break;
         case "edge_label_error":
-          what = `「${d.fromLabel}」と「${d.toLabel}」をつなぐこと自体は正しいのですが、矢印の種類が「${d.gotLabel}」になっています。`;
+          what = `「${d.fromLabel}」と「${d.toLabel}」をつなぐこと自体は正しいのですが、矢印の種類が「${displayEdgeLabel(d.gotLabel)}」になっています。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           break;
         case "hub_misassignment": {
@@ -5835,7 +5839,7 @@
             what = `「${d.fromLabel}」と「${d.toLabel}」の間に連携協力のつながりがありません。`;
             involvedLabels = [d.fromLabel, d.toLabel];
           } else {
-            what = `「${d.fromLabel}」と「${d.toLabel}」の間に、正解の構造にはないつながりがあります。`;
+            what = `「${d.fromLabel}」と「${d.toLabel}」の間に、基準となる組織構造にはないつながりがあります。`;
             involvedLabels = [d.fromLabel, d.toLabel];
           }
           break;
@@ -5843,7 +5847,7 @@
         case "support_layer_violation":
           what = (d.subtype === "target_not_beneficiary")
             ? `「${d.fromLabel}」から「${d.toLabel}」へ支援の矢印がありますが、「${d.toLabel}」は支援の対象ではありません。`
-            : `「${d.fromLabel}」から支援の矢印が出ていますが、この組織のレイヤーからは支援を出せません。`;
+            : `「${d.fromLabel}」から支援の矢印が出ていますが、この組織の層からは支援を出せません。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           break;
         case "support_missing":
@@ -5851,11 +5855,11 @@
           involvedLabels = [d.fromLabel, d.toLabel];
           break;
         case "support_overuse":
-          what = `「${d.fromLabel}」から「${d.toLabel}」へ支援がありますが、正解の構造にはありません。`;
+          what = `「${d.fromLabel}」から「${d.toLabel}」へ支援がありますが、基準となる組織構造にはありません。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           break;
         case "coordination_path_error":
-          what = `「${d.fromLabel}」と「${d.toLabel}」が連携協力で直接つながっていますが、正解の構造にはこの直接のつながりはありません。`;
+          what = `「${d.fromLabel}」と「${d.toLabel}」が連携協力で直接つながっていますが、基準となる組織構造にはこの直接のつながりはありません。`;
           involvedLabels = [d.fromLabel, d.toLabel];
           break;
         default:
@@ -6048,15 +6052,15 @@
       case "node_missing":            return "必要な組織をパレットから追加し、正しい層に配置してください。";
       case "node_extra":              return "この組織が必要かどうか確認し、不要であれば削除してください。";
       case "layer_mismatch":          return "対象の組織を正しい層へ移動してください。";
-      case "command_missing":         return "指示命令の矢印を引いてください。";
-      case "command_overuse":         return "この指示命令の矢印を削除してください。つながり自体が必要な場合は連携協力で引き直してください。";
+      case "command_missing":         return "指揮命令の矢印を引いてください。";
+      case "command_overuse":         return "この指揮命令の矢印を削除してください。つながり自体が必要な場合は連携協力で引き直してください。";
       case "edge_label_error":        return "この矢印の種類を正しいものに変更してください。";
       case "hub_misassignment":       return "連携協力の矢印を正しいまとめ役へつなぎ直すか、不足分を追加してください。";
       case "support_layer_violation": return "この支援の矢印を削除してください。必要なら実働の層のチームから引き直してください。";
       case "support_missing":         return "支援の矢印を引いてください。";
       case "support_overuse":         return "この矢印を削除してください。";
       case "coordination_path_error": return "この矢印を削除してください。必要ならまとめ役を経由する構造を確認してください。";
-      default:                        return "マップを修正してください。";
+      default:                        return "組織構造を修正してください。";
     }
   }
 
@@ -6418,10 +6422,10 @@
       _rdwReachedComplete = true;
       _wtSetReached(_rdwStage === "layer" ? "recoveryLayer" : "recoveryEdge"); // [NEW flow-v4 段階2補修2]
       nextPhaseBtn?.classList.remove("btn-gated");
-      if (counterEl)  counterEl.textContent  = "採点結果";
+      if (counterEl)  counterEl.textContent  = "差分提示の結果";
       if (stageTagEl) stageTagEl.style.display = "none";
       if (whatEl) whatEl.textContent = _rdwStage === "layer"
-        ? "レイヤー配置に修正ポイントはありません。よくできています。"
+        ? "層配置に修正ポイントはありません。よくできています。"
         : "関係（矢印）に修正ポイントはありません。よくできています。";
       if (whyEl) whyEl.textContent = "";
       if (whyWrapEl) whyWrapEl.style.display = "none";
@@ -6437,8 +6441,8 @@
       if (counterEl)  counterEl.textContent = `全 ${errorCount} 件`;
       if (stageTagEl) stageTagEl.style.display = "none";
       if (whatEl) whatEl.textContent = _rdwStage === "layer"
-        ? `あなたのレイヤー配置には ${errorCount} 件の修正ポイントがあります。`
-        : `あなたのマップの関係（矢印）には ${errorCount} 件の修正ポイントがあります。`;
+        ? `あなたの層配置には ${errorCount} 件の修正ポイントがあります。`
+        : `あなたの組織構造の関係（矢印）には ${errorCount} 件の修正ポイントがあります。`;
       if (whyEl) whyEl.textContent = "";
       if (whyWrapEl) whyWrapEl.style.display = "none";
       if (fixEl) fixEl.textContent = "「次へ」を押して、1件ずつ確認しましょう。";
@@ -6482,7 +6486,7 @@
         if (whyEl) whyEl.textContent = "";
         if (whyWrapEl) whyWrapEl.style.display = "none";
         if (fixEl) fixEl.textContent = (_rdwStage === "layer")
-          ? "このまま進むと、残っている欠落・誤配置は正解の層に確定されます。"
+          ? "このまま進むと、残っている欠落・誤配置は正しい層に確定されます。"
           : "このままの内容で次へ進みます。";
       }
 
@@ -6720,7 +6724,7 @@
     txt.setAttribute("x", lx); txt.setAttribute("y", ly-2);
     txt.setAttribute("class","edge-label-text");
     txt.setAttribute("fill", col);
-    txt.textContent = e.label || "";
+    txt.textContent = displayEdgeLabel(e.label) || "";
     g.appendChild(txt);
 
     return g;
@@ -6808,7 +6812,7 @@
 
       // ノード数・矢印数の表示
       if (statEl) {
-        statEl.textContent = `ノード: ${nodes.length} ／ 矢印: ${edges.length}`;
+        statEl.textContent = `組織: ${nodes.length} ／ 矢印: ${edges.length}`;
       }
 
       // フィット表示（Phase3のみ）
@@ -6848,7 +6852,7 @@
   function renderPhase5Map() {
     if (mapLoadStatus.idealAcute !== "ready") {
       if (canvasEl) canvasEl.innerHTML = mapLoadStatus.idealAcute === "error"
-        ? '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 基準マップの読み込みに失敗しました</div>'
+        ? '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 基準となる組織構造の読み込みに失敗しました</div>'
         : '<div style="color:var(--text-dim);padding:20px;font-size:14px;">読み込み中…</div>';
       return;
     }
@@ -6905,7 +6909,7 @@
   function prepConfirmAdditionChange() {
     if (!phase6Initialized) return true;
     if (hasP6Edits()) {
-      if (!confirm("追加する組織を変更すると、復旧期マップの編集内容がリセットされます。続けますか？")) return false;
+      if (!confirm("追加する組織を変更すると、復旧期の組織構造の編集内容がリセットされます。続けますか？")) return false;
     }
     invalidatePhase6();
     logOp("INVALIDATE_PHASE6", { reason: "addition_changed" });
@@ -7059,7 +7063,7 @@
     // ・confirm 通過（または編集なし）なら invalidatePhase6() で Phase6 を無効化する
     if (phase6Initialized) {
       if (hasP6Edits()) {
-        if (!confirm("削除候補を変更すると、復旧期マップの編集内容がリセットされます。続けますか？")) {
+        if (!confirm("削除候補を変更すると、復旧期の組織構造の編集内容がリセットされます。続けますか？")) {
           return;
         }
       }
@@ -7406,7 +7410,7 @@
       const note = $(`${COMPARE_PREFIX[phase]}-missingNote`);
       if (note) {
         note.textContent = nodesMissing.length > 0
-          ? "ご自身のマップには、注目する組織や関係の一部が配置されていません。実際の組織構造と解説を見ながら考えてください。"
+          ? "あなたの組織構造には、注目する組織や関係の一部が配置されていません。実際の組織構造と解説を見ながら考えてください。"
           : "";
         note.hidden = nodesMissing.length === 0;
       }
@@ -7498,7 +7502,7 @@
       nodes = src.nodes; edges = src.edges;
     } else {
       const st = isA ? mapLoadStatus.actualAcute : mapLoadStatus.actualRecovery;
-      if (st !== "ready") { showToast("実際の組織構造マップを表示できません", 2500); return; }
+      if (st !== "ready") { showToast("実際の組織構造を表示できません", 2500); return; }
       const m = isA ? window.actualMapAcute : window.actualMapRecovery;
       nodes = m.nodes; edges = m.edges;
     }
@@ -7598,8 +7602,8 @@
       );
     } else if (status === "error") {
       if (actualCanvas) actualCanvas.innerHTML = isA
-        ? '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際の組織構造マップの読み込みに失敗しました</div>'
-        : '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際マップの読み込みに失敗しました</div>';
+        ? '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際の組織構造の読み込みに失敗しました</div>'
+        : '<div style="color:var(--red);padding:20px;font-size:14px;">⚠ 実際の組織構造の読み込みに失敗しました</div>';
       markCompareActualUnavailable(phase);
     } else {
       if (actualCanvas) actualCanvas.innerHTML =
@@ -8056,8 +8060,8 @@
     [ACUTE_SUB.L1_COMMAND]: "学習シナリオの【関係を表す言葉について】を読んでください．\nまずは「指揮層」に配置すべき組織を配置してみましょう。災害対応の全体を統括する目的・戦略・優先順位を決定する組織を配置します。\n配置できたら「次へ進む」を押してください。",
     [ACUTE_SUB.L2_SECTION]: "次は「調整・統制層」を配置しましょう。現場の情報を集約し組織間の調整を担う組織を配置します。\n配置できたら「次へ進む」を押してください。",
     [ACUTE_SUB.L3_BRANCH]:  "次は「実働層」に配置すべき組織を配置しましょう。現場で具体的な支援活動を担当する組織を配置します。\n配置できたら「次へ進む」を押してください。",
-    [ACUTE_SUB.REVIEW]:     "最後に、全ての組織が適切な層に配置されているか確認しましょう。\n確認できたら「配置完了！差分確認へ」を押して、配置の確認結果に進みます。",
-    [ACUTE_SUB.EDGE]:       "シナリオ表1の『各組織の動き』に書かれている関係の言葉を手がかりに，配置した組織間の関係を矢印で表現しましょう。\nレイヤー（層）は確定済みのため変更できません。組織の位置は同じ層の中でのみ調整できます。組織の削除はできません。\n完成したら「これで完成」を押してください。",
+    [ACUTE_SUB.REVIEW]:     "最後に、全ての組織が適切な層に配置されているか確認しましょう。\n確認できたら「配置完了！差分提示へ」を押して、差分提示に進みます。",
+    [ACUTE_SUB.EDGE]:       "シナリオ表1の『各組織の動き』に書かれている関係の言葉を手がかりに，配置した組織間の関係を矢印で表現しましょう。\n層は確定済みのため変更できません。組織の位置は同じ層の中でのみ調整できます。組織の削除はできません。\n完成したら「これで完成」を押してください。",
   };
 
   // スナップショットログを記録する
@@ -8110,7 +8114,7 @@
     }
     if (nextBtn) {
       if (newSub === ACUTE_SUB.REVIEW) {
-        nextBtn.textContent = "配置完了！差分確認へ";
+        nextBtn.textContent = "配置完了！差分提示へ";
       } else if (newSub === ACUTE_SUB.EDGE) {
         nextBtn.textContent = "これで完成";
       } else {
@@ -8414,7 +8418,7 @@
         switchPhase(PHASE.RECOVERY_LAYER_DIFF);
         return;
       }
-      const ok = confirm("復旧期マップを修正すると、差分提示で行った修正内容は破棄され、確認をやり直すことになります。よろしいですか？");
+      const ok = confirm("復旧期の組織構造を修正すると、差分提示で行った修正内容は破棄され、確認をやり直すことになります。よろしいですか？");
       if (!ok) {
         logOp("RECOVERY_BACK_CANCELLED", { fromPhase: state.phase });
         return;
@@ -8723,7 +8727,7 @@
     if (type === COOP) {
       // CMD/INFOが存在すれば拒否（無方向）
       if (pairEdges.some(e => CMD_INFO.has(e.label))) {
-        return { allowed: false, reason: "指示命令または情報伝達が設定済みのペアには連携協力を追加できません" };
+        return { allowed: false, reason: "指揮命令または情報伝達が設定済みのペアには連携協力を追加できません" };
       }
       // COOP重複チェックは無方向（A↔B を同一ペアとみなす）
       if (pairEdges.some(e => e.label === COOP)) {
@@ -8735,7 +8739,7 @@
     if (CMD_INFO.has(type)) {
       // COOPが存在すれば拒否（無方向）
       if (pairEdges.some(e => e.label === COOP)) {
-        return { allowed: false, reason: "連携協力が設定済みのペアには指示命令・情報伝達を追加できません" };
+        return { allowed: false, reason: "連携協力が設定済みのペアには指揮命令・情報伝達を追加できません" };
       }
       // 重複チェックは有方向（同一 from/to/type のみブロック。逆向きは別エッジとして許可）
       if (edges.some(e => e.from === fromId && e.to === toId && e.label === type)) {
@@ -9078,7 +9082,7 @@
     },
     {
       n: 9,
-      instruction: "ノードを <strong>ダブルクリック</strong> して、関連するノードがハイライトされることを確認してください（B がもっとも分かりやすくおすすめです）",
+      instruction: "組織を <strong>ダブルクリック</strong> して、関連する組織がハイライトされることを確認してください（B がもっとも分かりやすくおすすめです）",
       isComplete: s => s._lastDblClickedNodeId !== null,
       guides: () => [{ sel: '.tut-node[data-label="B"]', medium: true }],
       autoAdvanceDelay: 2000,
@@ -9213,7 +9217,7 @@
       canvasWrap?.addEventListener("mousemove", tutDom._arrowMoveHandler);
       // show hint
       if (tutDom.hint) {
-        tutDom.hint.textContent = "接続先のノード B をクリックしてください";
+        tutDom.hint.textContent = "接続先の組織 B をクリックしてください";
         tutDom.hint.style.display = "";
       }
     } else {
@@ -9463,7 +9467,7 @@
       txt.setAttribute("x", (x1 + x2) / 2); txt.setAttribute("y", (y1 + y2) / 2 - 5);
       txt.setAttribute("text-anchor", "middle"); txt.setAttribute("font-size", "11");
       txt.setAttribute("fill", et.stroke); txt.style.pointerEvents = "none";
-      txt.textContent = e.label;
+      txt.textContent = displayEdgeLabel(e.label);
       svg.appendChild(txt);
     });
   }
@@ -9529,7 +9533,7 @@
 
     const rowsHtml = EDGE_TYPES.map(t =>
       `<button class="edge-dir-btn" data-label="${esc(t.label)}" style="width:100%;border-color:${t.stroke}">
-        <span class="dir-txt" style="color:${t.stroke}"><span class="ebdot" style="background:${t.stroke}"></span> ${esc(t.label)}</span>
+        <span class="dir-txt" style="color:${t.stroke}"><span class="ebdot" style="background:${t.stroke}"></span> ${esc(displayEdgeLabel(t.label))}</span>
         <span class="dir-sub">${esc(t.desc)}</span>
       </button>`
     ).join("");
@@ -9576,7 +9580,7 @@
     const rowsHtml = EDGE_TYPES.map(t => {
       const cur = edge.label === t.label ? " ✓" : "";
       return `<button class="edge-dir-btn" data-label="${esc(t.label)}" style="width:100%;border-color:${t.stroke}">
-        <span class="dir-txt" style="color:${t.stroke}"><span class="ebdot" style="background:${t.stroke}"></span> ${esc(t.label)}${cur}</span>
+        <span class="dir-txt" style="color:${t.stroke}"><span class="ebdot" style="background:${t.stroke}"></span> ${esc(displayEdgeLabel(t.label))}${cur}</span>
         <span class="dir-sub">${esc(t.desc)}</span>
       </button>`;
     }).join("");
