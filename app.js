@@ -1833,8 +1833,9 @@
   }
 
   // layerId 未設定ノードに対応するキャンバス要素を一時的に強調表示
-  function flashUnsetLayerNodes(unsetNodes) {
-    const p6Canvas = document.getElementById("canvas-p6");
+  // [CHANGED] 第2引数でキャンバス要素を指定できる（省略時は⑨の canvas-p6。急性期からは canvas-acute を渡す）
+  function flashUnsetLayerNodes(unsetNodes, canvas) {
+    const p6Canvas = canvas || document.getElementById("canvas-p6");
     if (!p6Canvas) return;
     unsetNodes.forEach(n => {
       const el = p6Canvas.querySelector(`.node[data-id="${n.id}"]`);
@@ -1918,6 +1919,15 @@
       if (phaseData.acute.nodes.length === 0) {
         showToast("先に急性期の組織構造を作成してください", 3000);
         logOp("VALIDATION_ERROR", { type: "ACUTE_MAP_EMPTY", attemptedPhase: p });
+        state.phase = prevPhase;
+        activatePhaseView(prevPhase);
+        updatePhaseSteps(prevPhase);
+        return;
+      }
+      // [NEW] ACUTE_MAP からヘッダーのステップ等で直接移るときも「配置完了」と同じ検証を行う
+      // （「配置完了」からの遷移・強制遷移・復元・終了後の見直し、ACUTE_MAP 以外からの戻りは対象外）
+      if (prevPhase === PHASE.ACUTE_MAP && !_viaAcuteReview && !_forcedAdvance &&
+          !_restoringFromStorage && !state.sessionEnded && !checkAcuteLayoutForLayerDiff("direct")) {
         state.phase = prevPhase;
         activatePhaseView(prevPhase);
         updatePhaseSteps(prevPhase);
@@ -8909,7 +8919,25 @@
     // REVIEW 分岐はフェーズ1（ACUTE_MAP）でのみ発火する
     if (state.phase !== PHASE.ACUTE_MAP) return;
     const cur = state.acuteSubPhase;
-    // REVIEW → ACUTE_LAYER_DIFF（レイヤー差分提示フェーズ）: パレットに残っているノードがないか検証 [CHANGED]
+    // [CHANGED] 検証（パレットの残り → 層が未設定の組織）は checkAcuteLayoutForLayerDiff に集約
+    if (!checkAcuteLayoutForLayerDiff("review")) return;
+    _logAcuteSnapshot("SUB_NEXT");
+    logOp("ACUTE_SUB_NEXT", { from: cur, to: "ACUTE_LAYER_DIFF" });
+    _viaAcuteReview = true;
+    try {
+      switchPhase(PHASE.ACUTE_LAYER_DIFF);
+    } finally {
+      _viaAcuteReview = false;
+    }
+  }
+
+  // [NEW] 「配置完了」からの遷移中だけ真（switchPhase 側の直接移動の検証と二重に行わないため）
+  let _viaAcuteReview = false;
+
+  // ACUTE_MAP → ACUTE_LAYER_DIFF の検証。止める場合はトースト・点滅・ログまで行い false を返す。
+  // source: "review"（配置完了）／"direct"（ヘッダーのステップ等からの直接移動）
+  function checkAcuteLayoutForLayerDiff(source) {
+    // 1. パレットに残っているノードがないか検証（既存）
     let remaining = paletteEl
       ? Array.from(paletteEl.querySelectorAll(".pitem:not(.pitem-placed)"))
           .map(el => el.querySelector(".plabel")?.textContent || "")
@@ -8924,14 +8952,26 @@
       showToast(`以下の組織がまだ配置されていません: ${remaining.join("、")}`, 4000);
       logOp("VALIDATION_ERROR", {
         type: "ACUTE_LAYOUT_INCOMPLETE",
-        attemptedTransition: "REVIEW_TO_EDGE",
+        attemptedTransition: source === "direct" ? "DIRECT_TO_LAYER_DIFF" : "REVIEW_TO_EDGE",
         remainingPaletteLabels: remaining,
       });
-      return;
+      return false;
     }
-    _logAcuteSnapshot("SUB_NEXT");
-    logOp("ACUTE_SUB_NEXT", { from: cur, to: "ACUTE_LAYER_DIFF" });
-    switchPhase(PHASE.ACUTE_LAYER_DIFF);
+    // 2. [NEW] 層が未設定の組織（グレー）。強制遷移中は行わない（グレーのまま採点に渡し FORCED_RESOLVE に記録する）
+    if (!_forcedAdvance) {
+      const unsetNodes = state.nodes.filter(n => n.layerId == null);
+      if (unsetNodes.length > 0) {
+        showToast("層が設定されていない組織名があります。灰色の組織をドラッグして、適切な層に配置してください。", 4000);
+        flashUnsetLayerNodes(unsetNodes, document.getElementById("canvas-acute"));
+        logOp("VALIDATION_ERROR", {
+          type: "ACUTE_LAYER_UNSET",
+          attemptedTransition: source === "direct" ? "DIRECT_TO_LAYER_DIFF" : "REVIEW_TO_LAYER_DIFF",
+          nodeIds: unsetNodes.map(n => n.id), labels: unsetNodes.map(n => n.label),
+        });
+        return false;
+      }
+    }
+    return true;
   }
 
   // acuteSubNext の EDGE 分岐（ACUTE_EDGE_MAP → ACUTE_DIFF）
