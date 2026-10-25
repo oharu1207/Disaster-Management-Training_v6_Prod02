@@ -50,6 +50,9 @@
     </div>
   </div>
   <div class="header-right">
+    <!-- [NEW flow-v5-timed] テストモード表示（?timeScale≠1 のときだけ）とブロックの残り時間（学習者向け） -->
+    <span id="timeScaleBadge" class="time-scale-badge" hidden></span>
+    <span id="blockTimer" class="block-timer" aria-live="off" hidden><span class="bt-label"></span><span class="bt-rest"></span></span>
     <span id="segmentBadge" class="segment-badge" aria-live="off"></span>
     <span id="sessionEndedBadge" class="session-ended-badge" hidden title="クリックで終了画面に戻る">終了済み（見直し中）</span>
     <button id="btnExport" class="btn-primary">📥 JSON保存</button>
@@ -57,6 +60,18 @@
     <button id="btnReset" class="btn-danger">初期化</button>
   </div>
 </header>
+
+<!-- ===== [NEW flow-v5-timed] 時間のお知らせ帯・お知らせ画面・研究者の一時停止 ===== -->
+<div id="timeNotice" class="time-notice" aria-live="polite" hidden></div>
+<div id="timeModal" class="time-modal" hidden>
+  <div class="time-modal-card" role="alertdialog" aria-modal="true" aria-labelledby="timeModalText">
+    <p id="timeModalText" class="time-modal-text"></p>
+    <button id="btnTimeModalOk" class="btn-primary time-modal-ok" type="button">OK</button>
+  </div>
+</div>
+<div id="pauseOverlay" class="pause-overlay" hidden>
+  <div class="pause-overlay-card">一時停止中（研究者の操作）</div>
+</div>
 
 <!-- ===== セッション準備（参加者番号の入力。研究者が入力） [NEW] ===== -->
 <div id="sessionSetup" class="session-setup" hidden>

@@ -2089,3 +2089,86 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
 .participant-badge { font-size: 10px; padding: 0 4px; letter-spacing: 0.3px; }
 .phase-step { padding: 4px 3px; }
 .step-label { letter-spacing: -0.4px; }
+
+/* ================================================================
+   [NEW flow-v5-timed] ブロック単位の時間運用：残り時間・テストモード・お知らせ帯・お知らせ画面・一時停止
+   既存のスタイルは変更しない（追加のみ）。
+   ================================================================ */
+/* ヘッダーの残り時間（学習者向け）：上段にブロック名、下段に残り時間。幅を取らないよう2段にする */
+.block-timer {
+  display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  flex-shrink: 0; white-space: nowrap; line-height: 1.15;
+  padding: 3px 9px; border-radius: 8px;
+  background: var(--card2); color: var(--text); border: 1px solid var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.block-timer[hidden] { display: none; }
+.block-timer .bt-label { font-size: 10px; font-weight: 700; color: var(--text-dim); }
+.block-timer .bt-rest { font-size: 16px; font-weight: 800; }
+.block-timer.bt-warn { background: #c62828; border-color: #c62828; color: #fff; }
+.block-timer.bt-warn .bt-label { color: #fff; }
+.time-scale-badge {
+  flex-shrink: 0; white-space: nowrap;
+  font-size: 11px; font-weight: 800; padding: 3px 6px; border-radius: 6px;
+  color: #1a1a1a; background: var(--yellow); border: 1px solid var(--yellow);
+}
+.time-scale-badge[hidden] { display: none; }
+
+/* お知らせ帯：画面上部中央。作業をふさがないよう、帯そのもの以外はクリックを通す */
+.time-notice {
+  position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+  z-index: 4100; width: min(760px, calc(100vw - 32px)); /* お知らせ画面（4000）の背景より上。一時停止（6000）より下 */
+  display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+}
+.time-notice[hidden] { display: none; }
+.time-notice-item {
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px 10px 16px; border-radius: 10px;
+  background: #1d3a6b; color: #fff; border: 2px solid var(--accent);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  font-size: 15px; font-weight: 700; line-height: 1.45;
+}
+.time-notice-item.is-warn { background: #7a1f1f; border-color: var(--red); }
+.time-notice-text { flex: 1 1 auto; min-width: 0; }
+.time-notice-close {
+  flex: 0 0 auto; width: 28px; height: 28px; padding: 0; border-radius: 6px;
+  background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.5);
+  font-size: 16px; line-height: 1; cursor: pointer;
+}
+
+/* お知らせ画面（強制遷移の後に表示。OK で閉じる） */
+.time-modal {
+  position: fixed; inset: 0; z-index: 4000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 8, 18, 0.62);
+}
+.time-modal[hidden] { display: none; }
+.time-modal-card {
+  width: min(560px, calc(100vw - 32px)); padding: 26px 28px 22px; border-radius: 14px;
+  background: var(--card); border: 2px solid var(--accent);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  display: flex; flex-direction: column; gap: 18px;
+}
+.time-modal-text { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.6; color: var(--text); }
+.time-modal-ok { align-self: flex-end; min-width: 120px; padding: 9px 18px; font-size: 15px; }
+
+/* 研究者の一時停止：画面全体を覆い、学習者の操作を受け付けない */
+.pause-overlay {
+  position: fixed; inset: 0; z-index: 6000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 8, 18, 0.9);
+}
+.pause-overlay[hidden] { display: none; }
+.pause-overlay-card {
+  padding: 26px 40px; border-radius: 14px;
+  background: var(--card); border: 2px solid var(--yellow); color: var(--yellow);
+  font-size: 26px; font-weight: 800; letter-spacing: 1px;
+}
+
+/* 戻れない画面：ヘッダーのステップと戻るボタン */
+.phase-step.locked, .phase-step.done.locked { opacity: 0.25; cursor: not-allowed; }
+.phase-step.locked .step-num { background: var(--border2); color: var(--text-muted); }
+button.time-locked { opacity: 0.45; cursor: not-allowed; }
+/* 強制遷移の最中は操作を受け付けない（遷移は数フレームで終わる） */
+body.forced-advancing .app-header, body.forced-advancing .phase-view { pointer-events: none; }
