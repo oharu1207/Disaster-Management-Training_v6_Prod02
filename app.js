@@ -1392,63 +1392,74 @@
     hideAcuteTooltip();
   }
 
-  // 層の中で既存の組織と重ならない x（見つからなければ最も離れた位置）
-  function freeXInLayer(layerId, nodes, width) {
-    const xs = nodes.filter(n => n.layerId === layerId).map(n => n.x);
-    const maxX = Math.max(20, width - 200);
-    let best = 20, bestGap = -1;
-    for (let x = 20; x <= maxX; x += 10) {
-      const gap = xs.length ? Math.min(...xs.map(v => Math.abs(v - x))) : Infinity;
-      if (gap >= 170) return x;
-      if (gap > bestGap) { bestGap = gap; best = x; }
-    }
-    return best;
-  }
-
-  // §5-3 ACUTE_MAP：REVIEW まで進め、未配置の組織を基準となる組織構造（急性期）の層に置く。
-  // 基準にない組織はパレットに残したまま（advanceFromAcuteReview が強制中は検証の対象から外す）。
+  // §5-3 ACUTE_MAP：REVIEW まで進め、基準となる組織構造（急性期）にある未配置の組織を「層なし（グレー）」で置く。
+  // 層は判断していない状態のまま採点に渡す（層の差分提示で got: null の誤りとして数え、退出時の既存の確定処理が
+  // 正しい層に置く）。基準にない組織はパレットに残したまま（advanceFromAcuteReview が強制中は検証の対象から外す）。
   function resolveAcuteMapForForced(f) {
     const sub = state.acuteSubPhase;
     if (sub !== ACUTE_SUB.REVIEW && sub !== ACUTE_SUB.EDGE) {
       setAcuteSubPhase(ACUTE_SUB.REVIEW, false);
       logOp("FORCED_RESOLVE", { blockId: f.blockId, kind: f.kind, type: "ACUTE_SUB_TO_REVIEW", labels: [], fromSubPhase: sub ?? null });
     }
-    const idealLayer = new Map((window.idealMapAcute?.nodes || []).map(n => [n.label, n.layerId]));
+    const idealLabels = new Set((window.idealMapAcute?.nodes || []).map(n => n.label));
+    // 置く前の状態で集める
+    const unsetOnCanvas = state.nodes
+      .filter(n => n.layerId == null && !BENEFICIARY_LABELS.has(n.label)).map(n => n.label);
     const placed = new Set(state.nodes.map(n => n.label));
     const unplaced = PALETTE_NODES.filter(pn => !placed.has(pn.label));
-    const toPlace = unplaced.filter(pn => idealLayer.get(pn.label) != null);
-    if (toPlace.length === 0) return;
-    const width = canvasWrap?.getBoundingClientRect().width || 1000;
-    for (const pn of toPlace) {
-      const layerId = idealLayer.get(pn.label);
-      state.nodes.push({
-        id: "n-" + uid(), label: pn.label, group: pn.group,
-        x: freeXInLayer(layerId, state.nodes, width), y: getCenterYForLayer(layerId),
-        layerId, layerReason: "",
-      });
+    const toPlace = unplaced.filter(pn => idealLabels.has(pn.label));
+    // パレットをクリックしたとき（addNode）と同じ規則で置く。選択状態は変えず、ADD_NODE も記録しない。
+    if (toPlace.length > 0) {
+      const rect = canvasWrap.getBoundingClientRect();
+      for (const pn of toPlace) {
+        const isBenef = BENEFICIARY_LABELS.has(pn.label);
+        const x = 80 + Math.floor(Math.random() * Math.max(rect.width - 280, 80));
+        const y = isBenef
+          ? getCenterYForLayer(4)
+          : 60 + Math.floor(Math.random() * Math.max(rect.height - 120, 60));
+        state.nodes.push({ id: "n-" + uid(), label: pn.label, group: pn.group, x, y,
+          layerId: isBenef ? 4 : null, layerReason: "" });
+      }
+      renderPalette();
+      renderAll();
+      saveToLocalStorage();
     }
-    renderPalette();
-    renderAll();
-    saveToLocalStorage();
+    // 該当が0件でも記録する
+    logOp("FORCED_RESOLVE", { blockId: f.blockId, kind: f.kind, type: "ACUTE_UNSET_ON_CANVAS", labels: unsetOnCanvas });
     logOp("FORCED_RESOLVE", {
-      blockId: f.blockId, kind: f.kind, type: "ACUTE_UNPLACED_TO_IDEAL_LAYER",
+      blockId: f.blockId, kind: f.kind, type: "ACUTE_UNPLACED_TO_UNSET",
       labels: toPlace.map(pn => pn.label),
-      keptInPalette: unplaced.filter(pn => idealLayer.get(pn.label) == null).map(pn => pn.label),
+      keptInPalette: unplaced.filter(pn => !idealLabels.has(pn.label)).map(pn => pn.label),
     });
   }
 
-  // §5-3 RECOVERY_MAP：層が未設定の組織は、基準となる組織構造（復旧期）にあれば基準の層へ、なければ図から外す
+  // 直近の強制遷移で、復旧期の層が未設定の組織を層に置いた件数（ブロックCのお知らせ画面の文面に使う）
+  let _forcedRecoveryPlacedCount = 0;
+
+  // §5-3 RECOVERY_MAP：層が未設定の組織は「急性期から変えていない」状態に置く。
+  //   1. 基準となる組織構造（急性期）にある → 急性期の基準の層（復旧期の基準にない組織も図から外さない）
+  //   2. 1 に当たらず、基準となる組織構造（復旧期）にある（準備画面・⑨で追加した組織）→ 復旧期の基準の層
+  //   3. どちらにもない → 図から外す
+  // 撤収すべき組織（node_extra）や役割の変化（layer_mismatch）は、そのまま差分提示の修正ポイントになる。
   function resolveRecoveryMapForForced(f) {
     const unset = state.nodes.filter(n => n.layerId == null);
-    if (unset.length === 0) return;
-    const idealLayer = new Map((window.idealMapRecovery?.nodes || []).map(n => [n.label, n.layerId]));
-    const placed = [], removed = [];
+    // 判定前の状態（0件でも記録する）
+    logOp("FORCED_RESOLVE", { blockId: f.blockId, kind: f.kind, type: "RECOVERY_UNSET_SUMMARY",
+      unsetLabels: unset.filter(n => !BENEFICIARY_LABELS.has(n.label)).map(n => n.label),
+      prepForced: Array.isArray(f.passedPhases) && f.passedPhases.includes(PHASE.RECOVERY_PREP),
+    });
+    if (unset.length === 0) { saveToLocalStorage(); return; }
+    const acuteLayer = new Map((window.idealMapAcute?.nodes || []).map(n => [n.label, n.layerId]));
+    const recoveryLayer = new Map((window.idealMapRecovery?.nodes || []).map(n => [n.label, n.layerId]));
+    const toAcute = [], toIdeal = [], removed = [];
     for (const n of unset) {
-      const layerId = idealLayer.get(n.label);
+      let layerId = acuteLayer.get(n.label);
+      let bucket = toAcute;
+      if (layerId == null) { layerId = recoveryLayer.get(n.label); bucket = toIdeal; }
       if (layerId != null) {
         n.layerId = layerId;
         n.y = getCenterYForLayer(layerId); // x は学習者配置を維持（既存のスナップと同じ）
-        placed.push(n.label);
+        bucket.push(n.label);
       } else {
         removed.push(n);
       }
@@ -1461,11 +1472,15 @@
         if (ids.has(state.edges[i].from) || ids.has(state.edges[i].to)) { state.edges.splice(i, 1); removedEdgeCount++; }
       }
     }
+    _forcedRecoveryPlacedCount += toAcute.length + toIdeal.length;
     renderPalette();
     renderAll();
     saveToLocalStorage();
-    if (placed.length) {
-      logOp("FORCED_RESOLVE", { blockId: f.blockId, kind: f.kind, type: "RECOVERY_UNSET_TO_IDEAL_LAYER", labels: placed });
+    if (toAcute.length) {
+      logOp("FORCED_RESOLVE", { blockId: f.blockId, kind: f.kind, type: "RECOVERY_UNSET_TO_ACUTE_LAYER", labels: toAcute });
+    }
+    if (toIdeal.length) {
+      logOp("FORCED_RESOLVE", { blockId: f.blockId, kind: f.kind, type: "RECOVERY_UNSET_TO_IDEAL_LAYER", labels: toIdeal });
     }
     if (removed.length) {
       logOp("FORCED_RESOLVE", { blockId: f.blockId, kind: f.kind, type: "RECOVERY_UNSET_REMOVED",
@@ -1504,7 +1519,9 @@
     const passedPhases = [fromPhase];
     cancelInProgressOps();
     clearTimeNotices(); // 遷移前の予告（「あと○分で…」）は遷移後には当てはまらないため閉じる
-    _forcedAdvance = { kind, blockId };
+    _forcedRecoveryPlacedCount = 0;
+    // passedPhases は各画面の処理が参照する（復旧期準備をこの強制遷移で通過したか）。ログには出さない。
+    _forcedAdvance = { kind, blockId, passedPhases };
     document.body.classList.add("forced-advancing");
     let failed = false;
     try {
@@ -1529,7 +1546,8 @@
       saveToLocalStorage();
       showTimeNotice("時間による自動移動に失敗しました。研究者を呼んでください。", { warn: true, sticky: true });
     }
-    return { fromPhase, toPhase: state.phase, passedPhases, moved: passedPhases.length > 1, failed };
+    return { fromPhase, toPhase: state.phase, passedPhases, moved: passedPhases.length > 1, failed,
+             recoveryPlacedCount: _forcedRecoveryPlacedCount };
   }
 
   // 遷移前の時点の完成度（取得できない値は null）
@@ -1584,7 +1602,10 @@
       updateTimeLockUI();
       saveToLocalStorage();
       if (res && res.moved && !res.failed) {
-        showTimeModal(`目安の時間になったため「${RESERVE_TARGET_LABEL[b.reserve.targetPhase]}」に進みました。基準となる組織構造と比べて確認しましょう。`, b.id, "reserve");
+        // ブロックCで層が未設定の組織を置いた場合だけ、置き方を一文で伝える
+        const placedNote = (b.id === "C" && res.recoveryPlacedCount > 0)
+          ? "層を決めていなかった組織は、急性期と同じ層（復旧期に加えた組織は復旧期の層）に置いています。" : "";
+        showTimeModal(`目安の時間になったため「${RESERVE_TARGET_LABEL[b.reserve.targetPhase]}」に進みました。基準となる組織構造と比べて確認しましょう。${placedNote}`, b.id, "reserve");
       }
     };
     if (b.reserve.prePhases.includes(state.phase)) {
