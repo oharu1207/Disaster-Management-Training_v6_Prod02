@@ -85,13 +85,13 @@
   // [NEW flow-v4] 区間定義。目安時間は改修項目表「区間構成と時間配分」と同期する。
   const SEGMENTS = Object.freeze([
     { id: 1,  name: "チュートリアル",             phases: [PHASE.ORIENTATION],                               targetMin: 4  },
-    { id: 2,  name: "急性期：層配置",             phases: [PHASE.ACUTE_MAP],                                 targetMin: 8  },
+    { id: 2,  name: "急性期：層配置",             phases: [PHASE.ACUTE_MAP],                                 targetMin: 10 },
     { id: 3,  name: "急性期：層配置の差分提示",   phases: [PHASE.ACUTE_LAYER_DIFF],                          targetMin: 3  },
-    { id: 4,  name: "急性期：関係付与",           phases: [PHASE.ACUTE_EDGE_MAP],                            targetMin: 12 },
+    { id: 4,  name: "急性期：関係付与",           phases: [PHASE.ACUTE_EDGE_MAP],                            targetMin: 13 },
     { id: 5,  name: "急性期：関係付与の差分提示", phases: [PHASE.ACUTE_DIFF],                                targetMin: 7  },
     { id: 6,  name: "急性期の比較・分析",         phases: [PHASE.ACUTE_COMPARE],                             targetMin: 5  },
-    { id: 7,  name: "復旧期準備",                 phases: [PHASE.RECOVERY_PREP],                             targetMin: 4  },
-    { id: 8,  name: "復旧期：組織構造の作成",           phases: [PHASE.RECOVERY_MAP],                              targetMin: 9  },
+    { id: 7,  name: "復旧期準備",                 phases: [PHASE.RECOVERY_PREP],                             targetMin: 3  },
+    { id: 8,  name: "復旧期：組織構造の作成",           phases: [PHASE.RECOVERY_MAP],                              targetMin: 7  },
     { id: 9,  name: "復旧期の差分提示",           phases: [PHASE.RECOVERY_LAYER_DIFF, PHASE.RECOVERY_DIFF],  targetMin: 4  },
     { id: 10, name: "復旧期の比較・分析",         phases: [PHASE.RECOVERY_COMPARE],                          targetMin: 4  },
   ]);
@@ -105,19 +105,19 @@
 
   // [NEW flow-v5-timed] ブロック単位の時間運用。値は試行後に調整する（ここ1か所）。
   const TIME_BLOCKS = Object.freeze([
-    { id: "A", label: "急性期の組織構造の作成", segments: [2, 3, 4, 5], limitMin: 30,
-      reserve: { noticeAtMin: 20, atMin: 23, targetPhase: PHASE.ACUTE_DIFF,
+    { id: "A", label: "急性期の組織構造の作成", segments: [2, 3, 4, 5], limitMin: 33,
+      reserve: { noticeAtMin: 23, atMin: 26, targetPhase: PHASE.ACUTE_DIFF,
                  prePhases: [PHASE.ACUTE_MAP, PHASE.ACUTE_LAYER_DIFF, PHASE.ACUTE_EDGE_MAP] },
-      lastNoticeAtMin: 29, timeoutTarget: PHASE.ACUTE_COMPARE, nextLabel: "比較・分析",
+      lastNoticeAtMin: 32, timeoutTarget: PHASE.ACUTE_COMPARE, nextLabel: "比較・分析",
       phases: [PHASE.ACUTE_MAP, PHASE.ACUTE_LAYER_DIFF, PHASE.ACUTE_EDGE_MAP, PHASE.ACUTE_DIFF] },
     { id: "B", label: "比較・分析（急性期）", segments: [6], limitMin: 5,
       autoExplainAtMin: 4, comparePhase: PHASE.ACUTE_COMPARE,
       timeoutTarget: PHASE.RECOVERY_PREP, nextLabel: "復旧期準備",
       phases: [PHASE.ACUTE_COMPARE] },
-    { id: "C", label: "復旧期の組織構造の作成", segments: [7, 8, 9], limitMin: 17,
-      reserve: { noticeAtMin: 11, atMin: 13, targetPhase: PHASE.RECOVERY_LAYER_DIFF,
+    { id: "C", label: "復旧期の組織構造の作成", segments: [7, 8, 9], limitMin: 14,
+      reserve: { noticeAtMin: 8, atMin: 10, targetPhase: PHASE.RECOVERY_LAYER_DIFF,
                  prePhases: [PHASE.RECOVERY_PREP, PHASE.RECOVERY_MAP] },
-      lastNoticeAtMin: 16, timeoutTarget: PHASE.RECOVERY_COMPARE, nextLabel: "比較・分析（復旧期）",
+      lastNoticeAtMin: 13, timeoutTarget: PHASE.RECOVERY_COMPARE, nextLabel: "比較・分析（復旧期）",
       phases: [PHASE.RECOVERY_PREP, PHASE.RECOVERY_MAP, PHASE.RECOVERY_LAYER_DIFF, PHASE.RECOVERY_DIFF] },
     { id: "D", label: "比較・分析（復旧期）", segments: [10], limitMin: 4,
       autoExplainAtMin: 3, comparePhase: PHASE.RECOVERY_COMPARE,
