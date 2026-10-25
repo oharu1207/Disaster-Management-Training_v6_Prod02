@@ -801,7 +801,13 @@
     // 先に区間バッジを新しい区間で描き直す（バッジの幅が変わると並びの幅も変わり、位置がずれるため）。
     renderSegmentBadge();
     updateTimeLockUI(); // [NEW flow-v5-timed]
+    updateStepsReadonly(); // [NEW]
     scrollActiveStepIntoView();
+  }
+  // [NEW] 学習中のステップは表示専用（クリックで移動しない）。学習終了後だけ見直しのために移動できる。
+  // 見た目の切替。学習終了直後・終了の解除でも呼ぶ（applySessionLock / releaseSessionLock）。
+  function updateStepsReadonly() {
+    document.querySelector(".phase-track")?.classList.toggle("steps-readonly", !state.sessionEnded);
   }
   function scrollActiveStepIntoView() {
     const activeStep = document.querySelector(".phase-step.active");
@@ -2647,6 +2653,7 @@
     const btnReset = $("btnReset");
     if (btnReset) { btnReset.disabled = true; btnReset.title = "学習終了後は使用できません"; }
     renderSegmentBadge();
+    updateStepsReadonly(); // [NEW] ステップでの移動を見直し用に戻す
   }
 
   function releaseSessionLock() {
@@ -2656,12 +2663,23 @@
     const btnReset = $("btnReset");
     if (btnReset) { btnReset.disabled = false; btnReset.removeAttribute("title"); }
     renderSegmentBadge();
+    updateStepsReadonly(); // [NEW]
   }
   $("sessionEndedBadge")?.addEventListener("click", () => {
     if (state.sessionEnded && state.phase !== PHASE.SESSION_END) switchPhase(PHASE.SESSION_END);
   });
   // data-phase 属性の値を使うことで、DOM順の index に依存しない
-  phaseSteps.forEach(s => s.addEventListener("click", () => switchPhase(parseInt(s.dataset.phase, 10))));
+  // [CHANGED] 学習中はステップを表示専用にする（画面の移動は「次へ」「戻る」ボタンだけ。ボタン側に確認・採点・
+  // 確定処理・時間の戻る制限がそろっているため）。押そうとしたことだけを記録する。学習終了後は見直しのため移動できる。
+  phaseSteps.forEach(s => s.addEventListener("click", () => {
+    const clickedPhase = parseInt(s.dataset.phase, 10);
+    if (!state.sessionEnded) {
+      logOp("STEP_CLICK_IGNORED", { phase: state.phase, clickedPhase });
+      return;
+    }
+    switchPhase(clickedPhase);
+  }));
+  updateStepsReadonly(); // 起動時（学習中）の見た目
   $("btnStartMap").addEventListener("click", () => switchPhase(PHASE.ACUTE_MAP));
 
   // ================================================================

@@ -2172,3 +2172,10 @@ body.session-ended .phase-view:not(#phase-end) { opacity: 0.92; }
 button.time-locked { opacity: 0.45; cursor: not-allowed; }
 /* 強制遷移の最中は操作を受け付けない（遷移は数フレームで終わる） */
 body.forced-advancing .app-header, body.forced-advancing .phase-view { pointer-events: none; }
+
+/* [NEW] 学習中のステップは表示専用（ホバー時も通常時の不透明度のまま。locked は 2170 行の値に合わせる） */
+.steps-readonly .phase-step { cursor: default; }
+.steps-readonly .phase-step:hover { opacity: 0.4; }
+.steps-readonly .phase-step.done:hover { opacity: 0.7; }
+.steps-readonly .phase-step.active:hover { opacity: 1; }
+.steps-readonly .phase-step.locked:hover, .steps-readonly .phase-step.done.locked:hover { opacity: 0.25; }
